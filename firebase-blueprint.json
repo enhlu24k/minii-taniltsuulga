@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "ScoreEntry": {
+      "title": "ScoreEntry",
+      "description": "A recorded game score submitted by a player after finishing a round of Anime Guess or Sports Emoji Quiz.",
+      "type": "object",
+      "properties": {
+        "playerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24,
+          "description": "Display name entered by the player when finishing the game."
+        },
+        "score": {
+          "type": "integer",
+          "description": "Final points achieved in the game round."
+        },
+        "game": {
+          "type": "string",
+          "enum": ["Anime Guess", "Sports Emoji Quiz"],
+          "description": "Name of the quiz game played."
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "Category/mode played within the game (e.g., Naruto, One Piece, Хөлбөмбөг)."
+        },
+        "categoryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Category identifier key."
+        },
+        "categoryIcon": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12,
+          "description": "Emoji icon representing the selected mode."
+        },
+        "correctCount": {
+          "type": "integer",
+          "description": "Number of questions answered correctly."
+        },
+        "totalQuestions": {
+          "type": "integer",
+          "description": "Total number of questions in the round."
+        },
+        "won": {
+          "type": "boolean",
+          "description": "Whether the player completed all questions without losing all lives."
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Authenticated Firebase user UID who submitted the score."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the score was saved."
+        }
+      },
+      "required": [
+        "playerName",
+        "score",
+        "game",
+        "mode",
+        "categoryId",
+        "categoryIcon",
+        "correctCount",
+        "totalQuestions",
+        "won",
+        "authorId",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/scores/{scoreId}": {
+      "schema": {
+        "$ref": "#/entities/ScoreEntry"
+      },
+      "description": "Public leaderboard scores saved when players finish Anime Guess or Sports Emoji Quiz."
+    }
+  }
+}

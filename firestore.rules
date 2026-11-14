@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidScore(data) {
+      return data.keys().hasAll([
+        'playerName',
+        'score',
+        'game',
+        'mode',
+        'categoryId',
+        'categoryIcon',
+        'correctCount',
+        'totalQuestions',
+        'won',
+        'authorId',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'playerName',
+        'score',
+        'game',
+        'mode',
+        'categoryId',
+        'categoryIcon',
+        'correctCount',
+        'totalQuestions',
+        'won',
+        'authorId',
+        'createdAt'
+      ]) &&
+      data.playerName is string && data.playerName.size() >= 1 && data.playerName.size() <= 24 &&
+      data.score is int && data.score >= 0 && data.score <= 5000 &&
+      data.game is string && (data.game == 'Anime Guess' || data.game == 'Sports Emoji Quiz') &&
+      data.mode is string && data.mode.size() >= 1 && data.mode.size() <= 40 &&
+      data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 32 && data.categoryId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.categoryIcon is string && data.categoryIcon.size() >= 1 && data.categoryIcon.size() <= 12 &&
+      data.correctCount is int && data.correctCount >= 0 && data.correctCount <= 50 &&
+      data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 50 && data.correctCount <= data.totalQuestions &&
+      data.won is bool &&
+      data.authorId is string && isValidId(data.authorId) && data.authorId == request.auth.uid &&
+      data.createdAt == request.time;
+    }
+
+    match /scores/{scoreId} {
+      // Public leaderboard entries contain no PII and are constrained to valid non-negative score records
+      allow get: if isValidId(scoreId) && resource.data.score is int && resource.data.score >= 0;
+      allow list: if resource.data.score >= 0;
+
+      // Only verified signed-in users can record a score with their own UID and server timestamp
+      allow create: if isSignedIn() &&
+        isVerifiedUser() &&
+        isValidId(scoreId) &&
+        isValidScore(incoming());
+
+      // Scores are immutable once submitted
+      allow update: if false;
+
+      // Players may delete only their own score entries
+      allow delete: if isSignedIn() &&
+        isVerifiedUser() &&
+        isValidId(scoreId) &&
+        existing().authorId == request.auth.uid;
+    }
+  }
+}

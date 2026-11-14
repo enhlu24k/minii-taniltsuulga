@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🏆 Sports Emoji Guesser — 4 Ангилалтай</title>
+  <style>
+    :root {
+      --bg-dark: #060919;
+      --bg-card: rgba(13, 19, 43, 0.88);
+      --border-glass: rgba(56, 189, 248, 0.25);
+      --accent: #3b82f6;
+      --accent-glow: #38bdf8;
+      --accent-violet: #8b5cf6;
+      --gold: #fbbf24;
+      --danger: #ef4444;
+      --success: #10b981;
+      --success-glow: #34d399;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(56, 189, 248, 0.20), transparent 45%),
+        radial-gradient(circle at 82% 82%, rgba(139, 92, 246, 0.22), transparent 45%),
+        repeating-linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.015) 0px,
+          rgba(255, 255, 255, 0.015) 60px,
+          transparent 60px,
+          transparent 120px
+        ),
+        var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 660px;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-glass);
+      border-radius: 26px;
+      padding: 28px;
+      box-shadow:
+        0 25px 65px rgba(0, 0, 0, 0.72),
+        0 0 40px rgba(59, 130, 246, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .app-container::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 15%;
+      right: 15%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent-glow), var(--accent-violet), transparent);
+      border-radius: 99px;
+    }
+
+    /* Header HUD */
+    .hud {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 7px 13px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .pill.score {
+      color: var(--gold);
+      border-color: rgba(251, 191, 36, 0.32);
+      background: rgba(251, 191, 36, 0.08);
+    }
+
+    .pill.best {
+      color: var(--accent-glow);
+      border-color: rgba(56, 189, 248, 0.32);
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .pill.streak {
+      color: #fb923c;
+      border-color: rgba(251, 146, 60, 0.35);
+      background: rgba(251, 146, 60, 0.1);
+      display: none;
+    }
+
+    .pill.streak.active {
+      display: inline-flex;
+      animation: popIn 0.3s ease;
+    }
+
+    /* Lives / Hearts */
+    .lives {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.28);
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+
+    .heart {
+      font-size: 1.15rem;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease, filter 0.35s ease;
+      display: inline-block;
+    }
+
+    .heart.lost {
+      opacity: 0.22;
+      filter: grayscale(1);
+      transform: scale(0.75) rotate(-15deg);
+    }
+
+    /* Sound Toggle Button */
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-main);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 1.1rem;
+      transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .icon-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent-glow);
+      transform: translateY(-2px) scale(1.08);
+      box-shadow: 0 6px 18px rgba(56, 189, 248, 0.35);
+    }
+
+    /* Progress Bar */
+    .progress-wrap {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 22px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-glow), var(--accent-violet));
+      border-radius: 999px;
+      transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.65);
+    }
+
+    /* Screens */
+    .screen {
+      display: none;
+      animation: fadeSlideUp 0.38s ease forwards;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    /* Start Screen */
+    .hero {
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.38);
+      color: var(--accent-glow);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ffffff 25%, #38bdf8 70%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 0.94rem;
+      margin-bottom: 18px;
+    }
+
+    /* Saved Stats Banner */
+    .saved-banner {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .saved-item {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      border-radius: 14px;
+      padding: 10px 8px;
+      transition: transform 0.22s ease, border-color 0.22s ease;
+    }
+
+    .saved-item:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-glow);
+    }
+
+    .saved-item .val {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--accent-glow);
+    }
+
+    .saved-item .lbl {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Category Selector Grid */
+    .cat-title {
+      text-align: left;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-glow);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .cat-card {
+      background: rgba(255, 255, 255, 0.045);
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 15px 14px;
+      cursor: pointer;
+      text-align: left;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      transition:
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.22s ease,
+        background 0.22s ease,
+        box-shadow 0.22s ease;
+    }
+
+    .cat-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      border-color: rgba(56, 189, 248, 0.65);
+      background: rgba(59, 130, 246, 0.14);
+      box-shadow: 0 12px 26px rgba(56, 189, 248, 0.22);
+    }
+
+    .cat-card.selected {
+      border-color: var(--accent-glow);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(139, 92, 246, 0.22));
+      box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+    }
+
+    .cat-card.selected::after {
+      content: "✓";
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-glow);
+      color: #061224;
+      font-size: 0.78rem;
+      font-weight: 900;
+      display: grid;
+      place-items: center;
+    }
+
+    .cat-icon {
+      font-size: 2rem;
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      transition: transform 0.25s ease;
+    }
+
+    .cat-card:hover .cat-icon {
+      transform: scale(1.1) rotate(-6deg);
+    }
+
+    .cat-info h4 {
+      font-size: 0.98rem;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+
+    .cat-meta {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cat-best {
+      color: var(--gold);
+      font-weight: 700;
+    }
+
+    .rules-box {
+      background: rgba(4, 8, 24, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 16px;
+      padding: 13px 16px;
+      text-align: left;
+      margin-bottom: 18px;
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      justify-content: center;
+    }
+
+    .rules-box span strong {
+      color: var(--text-main);
+    }
+
+    /* Primary Button */
+    .btn-primary {
+      width: 100%;
+      padding: 16px 24px;
+      border: none;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #2563eb, #4f46e5, #0891b2);
+      color: #fff;
+      font-size: 1.08rem;
+      font-weight: 700;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+      box-shadow: 0 10px 26px rgba(37, 99, 235, 0.42);
+    }
+
+    .btn-primary::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+      transform: skewX(-20deg);
+      transition: left 0.55s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px) scale(1.015);
+      box-shadow: 0 16px 36px rgba(56, 189, 248, 0.5);
+    }
+
+    .btn-primary:hover::after {
+      left: 140%;
+    }
+
+    .btn-primary:active {
+      transform: translateY(0) scale(0.99);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-muted);
+      padding: 9px 16px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.22s ease;
+    }
+
+    .btn-ghost:hover {
+      color: var(--text-main);
+      border-color: var(--accent-glow);
+      background: rgba(56, 189, 248, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost.danger:hover {
+      color: #f87171;
+      border-color: rgba(248, 113, 113, 0.45);
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    /* Game Screen */
+    .question-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 10px;
+    }
+
+    .cat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(139, 92, 246, 0.18);
+      border: 1px solid rgba(167, 139, 250, 0.35);
+      color: #ddd6fe;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .question-meta {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .emoji-stage {
+      background:
+        radial-gradient(circle at center, rgba(59, 130, 246, 0.18), rgba(6, 10, 28, 0.55));
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 22px;
+      padding: 36px 20px;
+      text-align: center;
+      margin-bottom: 22px;
+      position: relative;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .emoji-stage:hover {
+      transform: scale(1.015);
+      border-color: rgba(56, 189, 248, 0.55);
+      box-shadow: 0 12px 32px rgba(56, 189, 248, 0.18);
+    }
+
+    .emoji-display {
+      font-size: clamp(3rem, 9vw, 4.3rem);
+      letter-spacing: 10px;
+      display: inline-block;
+      filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      user-select: none;
+    }
+
+    .emoji-stage:hover .emoji-display {
+      transform: scale(1.08) translateY(-3px);
+    }
+
+    /* Options Grid */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    @media (max-width: 520px) {
+      .options-grid, .category-grid {
+        grid-template-columns: 1fr;
+      }
+      .app-container {
+        padding: 20px;
+      }
+    }
+
+    .option-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-main);
+      padding: 16px 18px;
+      border-radius: 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      position: relative;
+      overflow: hidden;
+      transition:
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        background 0.22s ease,
+        border-color 0.22s ease,
+        box-shadow 0.22s ease;
+    }
+
+    .option-key {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      display: grid;
+      place-items: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      transition: all 0.22s ease;
+    }
+
+    .option-btn:not(:disabled):hover {
+      transform: translateY(-4px) scale(1.02);
+      background: rgba(59, 130, 246, 0.18);
+      border-color: var(--accent-glow);
+      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.26);
+    }
+
+    .option-btn:not(:disabled):hover .option-key {
+      background: var(--accent-glow);
+      color: #082f49;
+      border-color: var(--accent-glow);
+      transform: scale(1.1);
+    }
+
+    .option-btn:disabled {
+      cursor: default;
+    }
+
+    .option-btn.correct {
+      background: rgba(16, 185, 129, 0.28);
+      border-color: var(--success-glow);
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.45);
+      transform: scale(1.02);
+    }
+
+    .option-btn.correct .option-key {
+      background: var(--success-glow);
+      color: #022c22;
+    }
+
+    .option-btn.wrong {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: #f87171;
+      box-shadow: 0 0 22px rgba(239, 68, 68, 0.35);
+    }
+
+    .option-btn.wrong .option-key {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    .feedback-bar {
+      min-height: 28px;
+      margin-top: 16px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.96rem;
+      letter-spacing: 0.3px;
+    }
+
+    .feedback-bar.good {
+      color: var(--success-glow);
+    }
+
+    .feedback-bar.bad {
+      color: #f87171;
+    }
+
+    /* End Screen */
+    .end-card {
+      text-align: center;
+      padding: 8px 0;
+    }
+
+    .end-icon {
+      font-size: 4.2rem;
+      margin-bottom: 10px;
+      display: inline-block;
+      animation: bounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .new-record-badge {
+      display: none;
+      margin: 0 auto 12px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(251, 191, 36, 0.22), rgba(245, 158, 11, 0.25));
+      border: 1px solid rgba(251, 191, 36, 0.6);
+      color: var(--gold);
+      font-size: 0.88rem;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      width: fit-content;
+      animation: popIn 0.4s ease;
+    }
+
+    .new-record-badge.show {
+      display: inline-block;
+    }
+
+    .end-card h2 {
+      font-size: 1.9rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .end-card p {
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 14px 10px;
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    .stat-box:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent-glow);
+    }
+
+    .stat-val {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--accent-glow);
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Animations */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-6px); }
+      80% { transform: translateX(6px); }
+    }
+
+    .shake {
+      animation: shake 0.42s ease;
+    }
+
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.7); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes bounceIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      70% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="app-container" id="appCard">
+    <!-- Top HUD -->
+    <header class="hud">
+      <div class="hud-group">
+        <div class="pill score" title="Одоогийн оноо">🏆 <span id="scoreText">0</span></div>
+        <div class="pill best" title="Тухайн төрлийн дээд оноо">👑 <span id="bestText">0</span></div>
+        <div class="pill streak" id="streakPill">🔥 <span id="streakText">0</span></div>
+      </div>
+
+      <div class="hud-group">
+        <div class="lives" id="livesBox" title="Үлдсэн амь">
+          <span class="heart">❤️</span>
+          <span class="heart">❤️</span>
+          <span class="heart">❤️</span>
+        </div>
+        <button class="icon-btn" id="soundToggle" title="Дуу хаах/нээх" aria-label="Дуу удирдах">🔊</button>
+      </div>
+    </header>
+
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Start Screen -->
+    <section class="screen active" id="startScreen">
+      <div class="hero">
+        <div class="hero-badge">🏆 SPORTS EMOJI QUIZ</div>
+        <h1>Тамирчин Таах Тоглоом</h1>
+        <p>Эможи сэжүүрээр дуртай спортынхоо шилдэг оддыг таагаарай!</p>
+
+        <div class="saved-banner">
+          <div class="saved-item">
+            <div class="val" id="savedTopRecord">0</div>
+            <div class="lbl">👑 Нийт рекорд</div>
+          </div>
+          <div class="saved-item">
+            <div class="val" id="savedTotalScore">0</div>
+            <div class="lbl">📊 Нийт оноо</div>
+          </div>
+          <div class="saved-item">
+            <div class="val" id="savedGames">0</div>
+            <div class="lbl">🎮 Тоглосон</div>
+          </div>
+        </div>
+
+        <div class="cat-title">📌 Төрөл сонгох:</div>
+        <div class="category-grid" id="categoryGrid"></div>
+
+        <div class="rules-box">
+          <span>❤️ <strong>3 амьтай</strong></span>
+          <span>🔥 <strong>Streak</strong> нэмэлт оноо</span>
+          <span>⌨️ <strong>1–4</strong> товч</span>
+          <span>💾 Оноо <strong>хадгалагдана</strong></span>
+        </div>
+
+        <button class="btn-primary" id="startBtn">⚽ Хөлбөмбөг — Эхлүүлэх ▶</button>
+        <div class="btn-row">
+          <button class="btn-ghost danger" id="resetStatsBtn">🗑️ Хадгалсан оноо цэвэрлэх</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Game Screen -->
+    <section class="screen" id="gameScreen">
+      <div class="question-header">
+        <span class="cat-pill" id="activeCatPill">⚽ Хөлбөмбөгчид</span>
+        <span class="question-meta" id="questionMeta">Асуулт 1 / 15</span>
+      </div>
+
+      <div class="emoji-stage">
+        <div class="emoji-display" id="emojiDisplay">🐐⚽🏆</div>
+      </div>
+
+      <div class="options-grid" id="optionsGrid"></div>
+
+      <div class="feedback-bar" id="feedbackBar"></div>
+
+      <div class="btn-row">
+        <button class="btn-ghost" id="quitToMenuBtn">← Төрөл солих</button>
+      </div>
+    </section>
+
+    <!-- End Screen -->
+    <section class="screen" id="endScreen">
+      <div class="end-card">
+        <div class="end-icon" id="endIcon">🏆</div>
+        <div><span class="new-record-badge" id="newRecordBadge">🎉 ШИНЭ РЕКОРД!</span></div>
+        <h2 id="endTitle">Гайхалтай!</h2>
+        <p id="endSubtitle">Та бүх асуултыг амжилттай дуусгалаа.</p>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-val" id="finalScore">0</div>
+            <div class="stat-label">Энэ удаагийн оноо</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="finalBest">0</div>
+            <div class="stat-label">👑 Ангиллын рекорд</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="finalCorrect">0/15</div>
+            <div class="stat-label">Зөв таасан</div>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="restartBtn">Дахин Тоглох 🔄</button>
+        <div class="btn-row">
+          <button class="btn-ghost" id="backHomeBtn">🏠 Өөр төрөл сонгох</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const CATEGORIES = {
+      football: {
+        id: "football",
+        name: "Хөлбөмбөгчид",
+        short: "Хөлбөмбөг",
+        icon: "⚽",
+        questions: [
+          {"emoji":"🐐⚽🏆","answer":"Lionel Messi","options":["Lionel Messi","Neymar Jr","Luis Suarez","Angel Di Maria"]},
+          {"emoji":"👑🚀⚽","answer":"Cristiano Ronaldo","options":["Kylian Mbappe","Cristiano Ronaldo","Harry Kane","Erling Haaland"]},
+          {"emoji":"🇧🇷🕺⚽","answer":"Neymar Jr","options":["Vinicius Jr","Ronaldinho","Neymar Jr","Raphinha"]},
+          {"emoji":"🚀⚡🥅","answer":"Kylian Mbappe","options":["Kylian Mbappe","Antoine Griezmann","Ousmane Dembele","Karim Benzema"]},
+          {"emoji":"🤖⚽🔥","answer":"Erling Haaland","options":["Harry Kane","Erling Haaland","Robert Lewandowski","Mohamed Salah"]},
+          {"emoji":"👑🎯⚡","answer":"Mohamed Salah","options":["Sadio Mane","Riyad Mahrez","Mohamed Salah","Son Heung-min"]},
+          {"emoji":"🪄🎩⚽","answer":"Ronaldinho","options":["Kaka","Ronaldinho","Ronaldo Nazario","Pele"]},
+          {"emoji":"🏆🧠⚽","answer":"Zinedine Zidane","options":["David Beckham","Zinedine Zidane","Thierry Henry","Andrea Pirlo"]},
+          {"emoji":"🦁💪⚽","answer":"Zlatan Ibrahimovic","options":["Zlatan Ibrahimovic","Didier Drogba","Samuel Eto'o","Wayne Rooney"]},
+          {"emoji":"🎯⚽🔥","answer":"Harry Kane","options":["Erling Haaland","Karim Benzema","Harry Kane","Robert Lewandowski"]},
+          {"emoji":"🧤🧱🏆","answer":"Thibaut Courtois","options":["Alisson Becker","Ederson","Thibaut Courtois","Manuel Neuer"]},
+          {"emoji":"⚡🎮⭐","answer":"Vinicius Junior","options":["Rodrygo","Vinicius Junior","Neymar Jr","Jude Bellingham"]},
+          {"emoji":"🎩⚽🧠","answer":"Kevin De Bruyne","options":["Bruno Fernandes","Luka Modric","Kevin De Bruyne","Toni Kroos"]},
+          {"emoji":"🏴⚽🔥","answer":"David Beckham","options":["David Beckham","Wayne Rooney","Steven Gerrard","Frank Lampard"]},
+          {"emoji":"🇧🇷🐐🏆","answer":"Pele","options":["Pele","Rivaldo","Kaka","Romario"]}
+        ]
+      },
+      basketball: {
+        id: "basketball",
+        name: "Сагсан бөмбөгчид",
+        short: "Сагсан бөмбөг",
+        icon: "🏀",
+        questions: [
+          {"emoji":"🐐✈️🏀","answer":"Michael Jordan","options":["Michael Jordan","Kobe Bryant","LeBron James","Magic Johnson"]},
+          {"emoji":"👑🚂🏀","answer":"LeBron James","options":["Kevin Durant","LeBron James","Kawhi Leonard","Carmelo Anthony"]},
+          {"emoji":"🐍💜🏆","answer":"Kobe Bryant","options":["Allen Iverson","Dwyane Wade","Kobe Bryant","Tracy McGrady"]},
+          {"emoji":"👨‍🍳🎯💦","answer":"Stephen Curry","options":["Klay Thompson","Damian Lillard","Stephen Curry","Ray Allen"]},
+          {"emoji":"🏋️‍♂️💥🏀","answer":"Shaquille O'Neal","options":["Shaquille O'Neal","Dwight Howard","Yao Ming","Tim Duncan"]},
+          {"emoji":"🃏🐴🧠","answer":"Nikola Jokic","options":["Luka Doncic","Nikola Jokic","Joel Embiid","Domantas Sabonis"]},
+          {"emoji":"🦌💪🏆","answer":"Giannis Antetokounmpo","options":["Giannis Antetokounmpo","Joel Embiid","Pascal Siakam","Anthony Davis"]},
+          {"emoji":"🪄🇸🇮🎯","answer":"Luka Doncic","options":["Nikola Jokic","Luka Doncic","Bogdan Bogdanovic","Goran Dragic"]},
+          {"emoji":"👽🗼🏀","answer":"Victor Wembanyama","options":["Rudy Gobert","Chet Holmgren","Victor Wembanyama","Kristaps Porzingis"]},
+          {"emoji":"🥽🪝🏆","answer":"Kareem Abdul-Jabbar","options":["Wilt Chamberlain","Bill Russell","Kareem Abdul-Jabbar","Hakeem Olajuwon"]},
+          {"emoji":"⌚🎯🔥","answer":"Damian Lillard","options":["Kyrie Irving","Damian Lillard","Trae Young","Ja Morant"]},
+          {"emoji":"🐍⏳🎯","answer":"Kevin Durant","options":["Kevin Durant","Paul George","Jayson Tatum","Brandon Ingram"]},
+          {"emoji":"🎩✨🏀","answer":"Magic Johnson","options":["Larry Bird","Isiah Thomas","Magic Johnson","John Stockton"]},
+          {"emoji":"⚡👟🏀","answer":"Allen Iverson","options":["Allen Iverson","Steve Nash","Chris Paul","Derrick Rose"]},
+          {"emoji":"🦵🎯🏆","answer":"Dirk Nowitzki","options":["Pau Gasol","Dirk Nowitzki","Kevin Garnett","Tim Duncan"]}
+        ]
+      },
+      f1: {
+        id: "f1",
+        name: "F1 Нисгэгчид",
+        short: "Formula 1",
+        icon: "🏎️",
+        questions: [
+          {"emoji":"🦁⚡🏎️","answer":"Max Verstappen","options":["Max Verstappen","Sergio Perez","Charles Leclerc","Lando Norris"]},
+          {"emoji":"👑🟣7️⃣","answer":"Lewis Hamilton","options":["Michael Schumacher","Lewis Hamilton","George Russell","Jenson Button"]},
+          {"emoji":"🔴7️⃣🏆","answer":"Michael Schumacher","options":["Michael Schumacher","Sebastian Vettel","Nico Rosberg","Niki Lauda"]},
+          {"emoji":"💛💚☔","answer":"Ayrton Senna","options":["Alain Prost","Nelson Piquet","Ayrton Senna","Emerson Fittipaldi"]},
+          {"emoji":"🇲🇨🔴🎹","answer":"Charles Leclerc","options":["Carlos Sainz","Charles Leclerc","Pierre Gasly","Esteban Ocon"]},
+          {"emoji":"🟠🎮🏆","answer":"Lando Norris","options":["Oscar Piastri","Lando Norris","Alex Albon","George Russell"]},
+          {"emoji":"🐂🎯⏳","answer":"Fernando Alonso","options":["Carlos Sainz","Fernando Alonso","Sebastian Vettel","Mark Webber"]},
+          {"emoji":"🧊😎🏎️","answer":"Kimi Raikkonen","options":["Mika Hakkinen","Valtteri Bottas","Kimi Raikkonen","Heikki Kovalainen"]},
+          {"emoji":"☝️🐝🏆","answer":"Sebastian Vettel","options":["Sebastian Vettel","Nico Rosberg","Mark Webber","Michael Schumacher"]},
+          {"emoji":"👶🌟🏎️","answer":"Kimi Antonelli","options":["Oliver Bearman","Kimi Antonelli","Oscar Piastri","Liam Lawson"]},
+          {"emoji":"🦘🧊🟠","answer":"Oscar Piastri","options":["Daniel Ricciardo","Mark Webber","Oscar Piastri","Jack Doohan"]},
+          {"emoji":"🍯🦡👟","answer":"Daniel Ricciardo","options":["Daniel Ricciardo","Oscar Piastri","Valtteri Bottas","Kevin Magnussen"]},
+          {"emoji":"🌶️🎶🏎️","answer":"Carlos Sainz","options":["Fernando Alonso","Carlos Sainz","Charles Leclerc","Sergio Perez"]},
+          {"emoji":"🔴🧢🔥","answer":"Niki Lauda","options":["James Hunt","Alain Prost","Niki Lauda","Jackie Stewart"]},
+          {"emoji":"🎩📊🏎️","answer":"George Russell","options":["Lando Norris","George Russell","Alex Albon","Lewis Hamilton"]}
+        ]
+      },
+      motogp: {
+        id: "motogp",
+        name: "MotoGP Нисгэгчид",
+        short: "MotoGP",
+        icon: "🏍️",
+        questions: [
+          {"emoji":"👨‍⚕️💛🐢","answer":"Valentino Rossi","options":["Valentino Rossi","Max Biaggi","Loris Capirossi","Andrea Dovizioso"]},
+          {"emoji":"🐜🔴🏆","answer":"Marc Marquez","options":["Jorge Lorenzo","Marc Marquez","Dani Pedrosa","Alex Marquez"]},
+          {"emoji":"🔴🎩🏍️","answer":"Francesco Bagnaia","options":["Francesco Bagnaia","Enea Bastianini","Marco Bezzecchi","Franco Morbidelli"]},
+          {"emoji":"🤖⚡🏍️","answer":"Jorge Martin","options":["Jorge Martin","Maverick Vinales","Aleix Espargaro","Alex Rins"]},
+          {"emoji":"😈💙🏍️","answer":"Fabio Quartararo","options":["Johann Zarco","Fabio Quartararo","Franco Morbidelli","Jack Miller"]},
+          {"emoji":"🦈🚀🏍️","answer":"Pedro Acosta","options":["Raul Fernandez","Fermin Aldeguer","Pedro Acosta","Joan Mir"]},
+          {"emoji":"🦘🔥🏆","answer":"Casey Stoner","options":["Jack Miller","Casey Stoner","Mick Doohan","Troy Bayliss"]},
+          {"emoji":"🥷🪶🏍️","answer":"Dani Pedrosa","options":["Dani Pedrosa","Jorge Lorenzo","Sete Gibernau","Alex Criville"]},
+          {"emoji":"🔨🍭🏍️","answer":"Jorge Lorenzo","options":["Marc Marquez","Jorge Lorenzo","Dani Pedrosa","Cal Crutchlow"]},
+          {"emoji":"🐴🔴🏍️","answer":"Andrea Dovizioso","options":["Andrea Iannone","Danilo Petrucci","Andrea Dovizioso","Marco Melandri"]},
+          {"emoji":"👑🇮🇹🏆","answer":"Giacomo Agostini","options":["Giacomo Agostini","Valentino Rossi","Mike Hailwood","Angel Nieto"]},
+          {"emoji":"🦘5️⃣🏆","answer":"Mick Doohan","options":["Wayne Gardner","Casey Stoner","Mick Doohan","Kevin Schwantz"]},
+          {"emoji":"🇺🇸⭐🏍️","answer":"Nicky Hayden","options":["Ben Spies","Colin Edwards","Nicky Hayden","Kenny Roberts Jr"]},
+          {"emoji":"🦂🖤🏍️","answer":"Marco Bezzecchi","options":["Marco Bezzecchi","Luca Marini","Fabio Di Giannantonio","Francesco Bagnaia"]},
+          {"emoji":"🐺🔥🏍️","answer":"Enea Bastianini","options":["Enea Bastianini","Danilo Petrucci","Lorenzo Savadori","Andrea Iannone"]}
+        ]
+      }
+    };
+
+    // --- LocalStorage Persistence ---
+    const STORAGE_KEY = "sports_emoji_guesser_v2";
+    let savedStats = loadStats();
+    let selectedCategoryId = "football";
+
+    function defaultStats() {
+      return {
+        totalScore: 0,
+        gamesPlayed: 0,
+        highScores: {
+          football: 0,
+          basketball: 0,
+          f1: 0,
+          motogp: 0
+        }
+      };
+    }
+
+    function loadStats() {
+      const def = defaultStats();
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return def;
+        const parsed = JSON.parse(raw);
+        return {
+          totalScore: parsed.totalScore || 0,
+          gamesPlayed: parsed.gamesPlayed || 0,
+          highScores: { ...def.highScores, ...(parsed.highScores || {}) }
+        };
+      } catch (e) {
+        return def;
+      }
+    }
+
+    function saveStats() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStats));
+      } catch (e) {}
+    }
+
+    function getTopRecord() {
+      return Math.max(...Object.values(savedStats.highScores), 0);
+    }
+
+    // --- Web Audio API Sound Engine ---
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume();
+        }
+      }
+
+      playTone(freq, duration, type = "sine", volume = 0.14, delay = 0) {
+        if (this.muted || !this.ctx || this.ctx.state !== "running") return;
+        const now = this.ctx.currentTime + delay;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.exponentialRampToValueAtTime(volume, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+
+      hover() {
+        this.playTone(620, 0.045, "sine", 0.03);
+      }
+
+      click() {
+        this.init();
+        this.playTone(480, 0.07, "triangle", 0.1);
+      }
+
+      correct() {
+        this.init();
+        this.playTone(523.25, 0.13, "triangle", 0.15, 0);
+        this.playTone(659.25, 0.13, "triangle", 0.15, 0.08);
+        this.playTone(783.99, 0.22, "triangle", 0.17, 0.16);
+        this.playTone(1046.5, 0.28, "sine", 0.12, 0.24);
+      }
+
+      wrong() {
+        this.init();
+        this.playTone(220, 0.16, "sawtooth", 0.11, 0);
+        this.playTone(155, 0.28, "sawtooth", 0.12, 0.13);
+      }
+
+      win() {
+        this.init();
+        const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5];
+        const times = [0, 0.1, 0.2, 0.32, 0.46, 0.58];
+        notes.forEach((n, i) => {
+          this.playTone(n, i === notes.length - 1 ? 0.45 : 0.14, "triangle", 0.16, times[i]);
+        });
+      }
+
+      gameOver() {
+        this.init();
+        this.playTone(330, 0.22, "sawtooth", 0.1, 0);
+        this.playTone(293.66, 0.22, "sawtooth", 0.1, 0.2);
+        this.playTone(261.63, 0.22, "sawtooth", 0.1, 0.4);
+        this.playTone(196, 0.5, "sawtooth", 0.11, 0.6);
+      }
+    }
+
+    const sfx = new SoundFX();
+
+    // --- Game State ---
+    const MAX_LIVES = 3;
+    let questions = [];
+    let currentIndex = 0;
+    let lives = MAX_LIVES;
+    let score = 0;
+    let streak = 0;
+    let bestStreak = 0;
+    let correctCount = 0;
+    let locked = false;
+    let transitionTimer = null;
+
+    // --- DOM Elements ---
+    const appCard = document.getElementById("appCard");
+    const startScreen = document.getElementById("startScreen");
+    const gameScreen = document.getElementById("gameScreen");
+    const endScreen = document.getElementById("endScreen");
+
+    const categoryGrid = document.getElementById("categoryGrid");
+    const startBtn = document.getElementById("startBtn");
+    const resetStatsBtn = document.getElementById("resetStatsBtn");
+
+    const scoreText = document.getElementById("scoreText");
+    const bestText = document.getElementById("bestText");
+    const streakPill = document.getElementById("streakPill");
+    const streakText = document.getElementById("streakText");
+    const livesBox = document.getElementById("livesBox");
+    const progressBar = document.getElementById("progressBar");
+    const soundToggle = document.getElementById("soundToggle");
+
+    const activeCatPill = document.getElementById("activeCatPill");
+    const questionMeta = document.getElementById("questionMeta");
+    const emojiDisplay = document.getElementById("emojiDisplay");
+    const optionsGrid = document.getElementById("optionsGrid");
+    const feedbackBar = document.getElementById("feedbackBar");
+
+    const endIcon = document.getElementById("endIcon");
+    const newRecordBadge = document.getElementById("newRecordBadge");
+    const endTitle = document.getElementById("endTitle");
+    const endSubtitle = document.getElementById("endSubtitle");
+    const finalScore = document.getElementById("finalScore");
+    const finalBest = document.getElementById("finalBest");
+    const finalCorrect = document.getElementById("finalCorrect");
+
+    // --- Render Categories & Saved Stats ---
+    function renderCategories() {
+      categoryGrid.innerHTML = "";
+      Object.values(CATEGORIES).forEach(cat => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = `cat-card ${cat.id === selectedCategoryId ? "selected" : ""}`;
+        const catBest = savedStats.highScores[cat.id] || 0;
+        card.innerHTML = `
+          <div class="cat-icon">${cat.icon}</div>
+          <div class="cat-info">
+            <h4>${cat.name}</h4>
+            <div class="cat-meta">
+              <span>${cat.questions.length} асуулт</span>
+              <span>•</span>
+              <span class="cat-best">👑 ${catBest}</span>
+            </div>
+          </div>
+        `;
+        card.addEventListener("mouseenter", () => sfx.hover());
+        card.addEventListener("click", () => {
+          sfx.click();
+          selectedCategoryId = cat.id;
+          renderCategories();
+          updateStartUI();
+        });
+        categoryGrid.appendChild(card);
+      });
+    }
+
+    function updateStartUI() {
+      const cat = CATEGORIES[selectedCategoryId];
+      startBtn.textContent = `${cat.icon} ${cat.short} — Эхлүүлэх ▶`;
+
+      document.getElementById("savedTopRecord").textContent = getTopRecord();
+      document.getElementById("savedTotalScore").textContent = savedStats.totalScore;
+      document.getElementById("savedGames").textContent = savedStats.gamesPlayed;
+
+      bestText.textContent = savedStats.highScores[selectedCategoryId] || 0;
+      resetStatsBtn.style.display =
+        savedStats.gamesPlayed > 0 || getTopRecord() > 0 ? "inline-block" : "none";
+    }
+
+    // --- Helpers ---
+    function shuffle(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function switchScreen(target) {
+      [startScreen, gameScreen, endScreen].forEach(s => s.classList.remove("active"));
+      target.classList.add("active");
+    }
+
+    function updateHUD() {
+      const catBest = savedStats.highScores[selectedCategoryId] || 0;
+      scoreText.textContent = score;
+      bestText.textContent = Math.max(catBest, score);
+      streakText.textContent = streak;
+      streakPill.classList.toggle("active", streak >= 2);
+
+      const hearts = livesBox.querySelectorAll(".heart");
+      hearts.forEach((h, idx) => {
+        h.classList.toggle("lost", idx >= lives);
+      });
+
+      const progress = questions.length ? (currentIndex / questions.length) * 100 : 0;
+      progressBar.style.width = `${progress}%`;
+    }
+
+    function startGame() {
+      if (transitionTimer) clearTimeout(transitionTimer);
+      sfx.click();
+
+      const cat = CATEGORIES[selectedCategoryId];
+      questions = shuffle(cat.questions).map(q => ({
+        ...q,
+        options: shuffle(q.options)
+      }));
+
+      currentIndex = 0;
+      lives = MAX_LIVES;
+      score = 0;
+      streak = 0;
+      bestStreak = 0;
+      correctCount = 0;
+      locked = false;
+
+      activeCatPill.textContent = `${cat.icon} ${cat.name}`;
+      updateHUD();
+      switchScreen(gameScreen);
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      locked = false;
+      feedbackBar.textContent = "";
+      feedbackBar.className = "feedback-bar";
+
+      const q = questions[currentIndex];
+      questionMeta.textContent = `Асуулт ${currentIndex + 1} / ${questions.length}`;
+      emojiDisplay.textContent = q.emoji;
+      progressBar.style.width = `${(currentIndex / questions.length) * 100}%`;
+
+      optionsGrid.innerHTML = "";
+      q.options.forEach((opt, i) => {
+        const btn = document.createElement("button");
+        btn.className = "option-btn";
+        btn.innerHTML = `<span class="option-key">${i + 1}</span><span>${opt}</span>`;
+        btn.addEventListener("mouseenter", () => sfx.hover());
+        btn.addEventListener("click", () => handleAnswer(opt, btn));
+        optionsGrid.appendChild(btn);
+      });
+    }
+
+    function handleAnswer(selected, btnEl) {
+      if (locked) return;
+      locked = true;
+
+      const q = questions[currentIndex];
+      const buttons = [...optionsGrid.querySelectorAll(".option-btn")];
+      buttons.forEach(b => (b.disabled = true));
+
+      if (selected === q.answer) {
+        btnEl.classList.add("correct");
+        streak++;
+        if (streak > bestStreak) bestStreak = streak;
+        correctCount++;
+
+        const bonus = streak >= 2 ? (streak - 1) * 5 : 0;
+        const gained = 10 + bonus;
+        score += gained;
+
+        feedbackBar.textContent = bonus > 0
+          ? `✅ Зөв! +${gained} оноо (🔥 ${streak} дарааллаа)`
+          : `✅ Зөв таалаа! +${gained} оноо`;
+        feedbackBar.className = "feedback-bar good";
+        sfx.correct();
+      } else {
+        btnEl.classList.add("wrong");
+        buttons.forEach(b => {
+          if (b.querySelector("span:last-child").textContent === q.answer) {
+            b.classList.add("correct");
+          }
+        });
+
+        lives--;
+        streak = 0;
+        feedbackBar.textContent = `❌ Буруу! Зөв хариу: ${q.answer}`;
+        feedbackBar.className = "feedback-bar bad";
+
+        appCard.classList.remove("shake");
+        void appCard.offsetWidth;
+        appCard.classList.add("shake");
+        sfx.wrong();
+      }
+
+      updateHUD();
+
+      transitionTimer = setTimeout(() => {
+        if (lives <= 0) {
+          endGame(false);
+        } else if (currentIndex + 1 >= questions.length) {
+          currentIndex++;
+          updateHUD();
+          endGame(true);
+        } else {
+          currentIndex++;
+          renderQuestion();
+        }
+      }, 1150);
+    }
+
+    function endGame(won) {
+      const cat = CATEGORIES[selectedCategoryId];
+      const prevBest = savedStats.highScores[selectedCategoryId] || 0;
+      const isNewRecord = score > 0 && score > prevBest;
+
+      savedStats.gamesPlayed += 1;
+      savedStats.totalScore += score;
+      if (score > prevBest) {
+        savedStats.highScores[selectedCategoryId] = score;
+      }
+      saveStats();
+      renderCategories();
+      updateStartUI();
+
+      progressBar.style.width = won ? "100%" : progressBar.style.width;
+      switchScreen(endScreen);
+
+      newRecordBadge.classList.toggle("show", isNewRecord);
+      finalScore.textContent = score;
+      finalBest.textContent = savedStats.highScores[selectedCategoryId];
+      finalCorrect.textContent = `${correctCount}/${questions.length}`;
+
+      if (won) {
+        endIcon.textContent = "🏆";
+        endTitle.textContent = `${cat.short} — Та яллаа!`;
+        endSubtitle.textContent = `Үлдсэн ${lives} амьтайгаар бүх ${questions.length} асуултыг давж гарлаа!`;
+        sfx.win();
+      } else {
+        endIcon.textContent = isNewRecord ? "🥇" : "💔";
+        endTitle.textContent = "Тоглоом дууслаа";
+        endSubtitle.textContent = isNewRecord
+          ? `3 амь дууссан ч ${cat.short} төрөлд шинэ рекорд тогтоолоо!`
+          : "Таны 3 амь дууслаа. Дахиад оролдоод үзээрэй!";
+        isNewRecord ? sfx.win() : sfx.gameOver();
+      }
+    }
+
+    function goToHome() {
+      if (transitionTimer) clearTimeout(transitionTimer);
+      sfx.click();
+      score = 0;
+      streak = 0;
+      lives = MAX_LIVES;
+      progressBar.style.width = "0%";
+      scoreText.textContent = "0";
+      streakPill.classList.remove("active");
+      livesBox.querySelectorAll(".heart").forEach(h => h.classList.remove("lost"));
+      renderCategories();
+      updateStartUI();
+      switchScreen(startScreen);
+    }
+
+    // --- Event Listeners ---
+    startBtn.addEventListener("click", startGame);
+    document.getElementById("restartBtn").addEventListener("click", startGame);
+    document.getElementById("backHomeBtn").addEventListener("click", goToHome);
+    document.getElementById("quitToMenuBtn").addEventListener("click", goToHome);
+
+    resetStatsBtn.addEventListener("click", () => {
+      sfx.click();
+      savedStats = defaultStats();
+      saveStats();
+      renderCategories();
+      updateStartUI();
+    });
+
+    [
+      startBtn,
+      document.getElementById("restartBtn"),
+      document.getElementById("backHomeBtn"),
+      document.getElementById("quitToMenuBtn"),
+      resetStatsBtn,
+      soundToggle
+    ].forEach(el => {
+      el.addEventListener("mouseenter", () => sfx.hover());
+    });
+
+    soundToggle.addEventListener("click", () => {
+      sfx.init();
+      sfx.muted = !sfx.muted;
+      soundToggle.textContent = sfx.muted ? "🔇" : "🔊";
+      if (!sfx.muted) sfx.click();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (!gameScreen.classList.contains("active") || locked) return;
+      const idx = ["1", "2", "3", "4"].indexOf(e.key);
+      if (idx !== -1) {
+        const btns = optionsGrid.querySelectorAll(".option-btn");
+        if (btns[idx]) btns[idx].click();
+      }
+    });
+
+    // Init
+    renderCategories();
+    updateStartUI();
+  </script>
+</body>
+</html>

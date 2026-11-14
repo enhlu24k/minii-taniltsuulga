@@ -17,14 +17,16 @@ import {
   Copy,
   Check,
   Globe,
-  Share2,
-  ChevronRight,
-  Flame,
-  User,
-  Heart,
   Flag,
-  RotateCcw
+  Play,
+  ArrowRight,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import EmojiQuizWindow, { GameMode } from './components/EmojiQuizWindow';
+import Leaderboard from './components/Leaderboard';
+import { Lang, loadLang, saveLang } from './utils/i18n';
+import { sfx } from './utils/sound';
 
 const P = 'https://images.higgs.ai/?default=1&output=webp&url=https%3A%2F%2Fd8j0ntlcm91z4.cloudfront.net%2Fuser_38xzZboKViGWJOttwIXH07lWA1P%2Fhf_';
 const SHIP = P + '20261031_024714_39df675e-5060-4528-87dc-9d0c274815aa.png&w=1600&q=90';
@@ -37,7 +39,7 @@ const BOX: Record<string, [string, number, number, number, number]> = {
   chest: [CAPT, 1475, 830, 446, 392],
   palm:  [PLANTS, 19, 32, 910, 1284],
   bushL: [PLANTS, 515, 820, 860, 496],
-  bushR: [PLANTS, 1528, 908, 499, 405]
+  bushR: [PLANTS, 1528, 908, 499, 405],
 };
 
 const LAY = {
@@ -49,7 +51,7 @@ const LAY = {
     capt: { x: 120, y: 318, w: 540 },
     chest: { x: 640, y: 628, w: 200 },
     bushL: { x: 96, y: 716, w: 700 },
-    bushR: { x: 1370, y: 740, w: 300 }
+    bushR: { x: 1370, y: 740, w: 300 },
   },
   port: {
     w: 800, h: 1500,
@@ -59,8 +61,8 @@ const LAY = {
     capt: { x: 20, y: 440, w: 600 },
     chest: { x: 560, y: 830, w: 190 },
     bushL: { x: -40, y: 1330, w: 520 },
-    bushR: { x: 570, y: 1340, w: 260 }
-  }
+    bushR: { x: 570, y: 1340, w: 260 },
+  },
 };
 
 interface WaveLayer {
@@ -75,7 +77,7 @@ interface WaveLayer {
 
 const BACK: WaveLayer[] = [
   { dy: -100, a: 20, k: 1.5, v: 0.9, ph: 0, fill: 'var(--band)' },
-  { dy: -52, a: 23, k: 1.9, v: 1.15, ph: 1.7, fill: 'var(--paper)' }
+  { dy: -52, a: 23, k: 1.9, v: 1.15, ph: 1.7, fill: 'var(--paper)' },
 ];
 
 const FRONT: WaveLayer[] = [
@@ -85,7 +87,7 @@ const FRONT: WaveLayer[] = [
   { dy: 76, a: 15, k: 2.1, v: 1.2, ph: 5.1, span: [0.52, 0.97] },
   { dy: 104, a: 24, k: 1.8, v: 1.25, ph: 2.2, fill: 'var(--paper)' },
   { dy: 130, a: 14, k: 2.7, v: 1, ph: 1.1, span: [0.0, 0.62] },
-  { dy: 158, a: 20, k: 1.6, v: 1.1, ph: 3.8 }
+  { dy: 158, a: 20, k: 1.6, v: 1.1, ph: 3.8 },
 ];
 
 function clamp(v: number, min = 0, max = 1): number {
@@ -134,19 +136,92 @@ function spriteStyle(key: keyof typeof BOX) {
   return {
     backgroundImage: `url("${img}")`,
     backgroundSize: `${bgSizeX.toFixed(4)}% ${bgSizeY.toFixed(4)}%`,
-    backgroundPosition: `${bgPosX.toFixed(4)}% ${bgPosY.toFixed(4)}%`
+    backgroundPosition: `${bgPosX.toFixed(4)}% ${bgPosY.toFixed(4)}%`,
   };
 }
 
+type ModalTab = 'projects' | 'games' | 'about' | 'interests' | 'contact';
+
 export default function App() {
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'projects' | 'about' | 'interests' | 'contact'>('projects');
+  const [activeTab, setActiveTab] = useState<ModalTab>('projects');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activeGameWindow, setActiveGameWindow] = useState<GameMode | null>(null);
+  const [lang, setLang] = useState<Lang>(() => loadLang());
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => sfx.muted);
 
-  const openModal = (tab: 'projects' | 'about' | 'interests' | 'contact' = 'projects') => {
+  const isEn = lang === 'en';
+
+  const handleLangChange = (nextLang: Lang) => {
+    setLang(nextLang);
+    saveLang(nextLang);
+  };
+
+  const handleToggleSound = () => {
+    sfx.toggle();
+  };
+
+  useEffect(() => {
+    setSoundMuted(sfx.muted);
+    return sfx.subscribe(setSoundMuted);
+  }, []);
+
+  useEffect(() => {
+    let lastHovered: Element | null = null;
+    const INTERACTIVE_SELECTOR = 'button:not(:disabled), a[href], .pill, [data-go], .logo';
+
+    const onPointerDown = () => {
+      if (!sfx.muted) {
+        sfx.init();
+      }
+    };
+
+    const onClickCapture = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const interactive = target?.closest(INTERACTIVE_SELECTOR);
+      if (!interactive) return;
+      if (interactive.getAttribute('data-sfx') === 'custom') return;
+      sfx.click();
+    };
+
+    const onPointerOver = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      const interactive = target?.closest(INTERACTIVE_SELECTOR) ?? null;
+      if (interactive !== lastHovered) {
+        lastHovered = interactive;
+        if (interactive) {
+          sfx.hover();
+        }
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('click', onClickCapture, true);
+    document.addEventListener('pointerover', onPointerOver, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('click', onClickCapture, true);
+      document.removeEventListener('pointerover', onPointerOver, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    const isGameOpen = activeGameWindow !== null;
+    document.documentElement.classList.toggle('ui-game-open', isGameOpen);
+    return () => {
+      document.documentElement.classList.remove('ui-game-open');
+    };
+  }, [activeGameWindow]);
+
+  const openModal = (tab: ModalTab = 'projects') => {
     setActiveTab(tab);
     setShowModal(true);
+  };
+
+  const openGameInSeparateWindow = (mode: GameMode) => {
+    setActiveGameWindow(mode);
   };
 
   const copyEmail = () => {
@@ -154,6 +229,7 @@ export default function App() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
   const frameRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const shadeRef = useRef<HTMLCanvasElement | null>(null);
@@ -272,7 +348,7 @@ export default function App() {
         [14, 78, 96, 16, 4],
         [40, 82, 118, 22, 3],
         [78, 80, 140, 34, 5],
-        [-12, 74, 22, 56, 6]
+        [-12, 74, 22, 56, 6],
       ];
       curves.forEach(([x0, y0, x1, y1, lw]) => {
         sCtx.lineWidth = lw;
@@ -372,11 +448,26 @@ export default function App() {
     let pingY = 0;
     let pingT0 = -10000;
 
+    let isHoverIframe = false;
+
     const onPointerMove = (e: PointerEvent) => {
       mx = e.clientX;
       my = e.clientY;
+      if (curX < -50 && curY < -50) {
+        curX = mx;
+        curY = my;
+      }
       const target = e.target as HTMLElement | null;
-      isHoverLink = !!target?.closest('a, button, .pill, [data-go], .logo');
+      isHoverIframe = target?.tagName === 'IFRAME';
+      isHoverLink = !!target?.closest('a, button:not(:disabled), .pill, [data-go], .logo');
+      if (cur) {
+        cur.classList.toggle('hovering', isHoverLink);
+        cur.style.opacity = isHoverIframe ? '0' : '1';
+      }
+    };
+
+    const onPointerLeave = () => {
+      if (cur) cur.style.opacity = '0';
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -391,11 +482,14 @@ export default function App() {
     };
 
     window.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('mouseleave', onPointerLeave);
     window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointerup', onPointerUp);
 
-    // Wheel navigation
+    // Wheel navigation (disabled when modal or game window is open)
     const onWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.articles-modal-backdrop, .game-window-overlay')) return;
       const now = performance.now();
       if (wheelLockedUntil > now) return;
       if (e.deltaY > 8) {
@@ -407,6 +501,44 @@ export default function App() {
       }
     };
     window.addEventListener('wheel', onWheel, { passive: true });
+
+    // Touch swipe navigation for iPhone & iPad
+    let touchStartY = 0;
+    let touchStartX = 0;
+    let touchIgnored = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('.articles-modal-backdrop, .game-window-overlay, nav')) {
+        touchIgnored = true;
+        return;
+      }
+      touchIgnored = false;
+      if (e.touches.length === 1) {
+        touchStartY = e.touches[0].clientY;
+        touchStartX = e.touches[0].clientX;
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (touchIgnored || e.changedTouches.length === 0) return;
+      const dy = touchStartY - e.changedTouches[0].clientY;
+      const dx = Math.abs(touchStartX - e.changedTouches[0].clientX);
+      if (Math.abs(dy) > 42 && Math.abs(dy) > dx) {
+        const now = performance.now();
+        if (wheelLockedUntil > now) return;
+        if (dy > 0) {
+          go(1);
+          wheelLockedUntil = now + 900;
+        } else {
+          go(0);
+          wheelLockedUntil = now + 900;
+        }
+      }
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
 
     // Clicks on data-go
     const onClick = (e: MouseEvent) => {
@@ -461,14 +593,12 @@ export default function App() {
       const dt = Math.min(0.05, (now - lastNow) / 1000);
       lastNow = now;
 
-      // Update transition progress p
       const DUR = reducedMotion ? 1 : 2100;
       const kTrans = seg(now, pT0, pT0 + DUR);
       p = mix(pFrom, pTo, io(kTrans));
 
       const t = reducedMotion ? 0 : (now - t0) / 1000;
 
-      // Update wave paths
       backPaths.forEach(({ path, layer }) => {
         path.setAttribute('d', buildWavePath(layer, t, p));
       });
@@ -476,7 +606,6 @@ export default function App() {
         path.setAttribute('d', buildWavePath(layer, t, p));
       });
 
-      // Ship positioning
       const c = L.ship;
       const sw = mix(c.w0, c.w1, p);
       const sx = mix(c.x0, c.x1, p);
@@ -493,35 +622,28 @@ export default function App() {
       _ship.style.top = shipTop.toFixed(1) + 'px';
       _ship.style.transform = `rotate(${rot.toFixed(2)}deg)`;
 
-      // Cloud
       const cloudX = ((((L.w * 0.72 - t * 16) % (L.w + 700)) + (L.w + 700)) % (L.w + 700)) - 400;
       _cloudA.style.left = cloudX.toFixed(1) + 'px';
       _cloudA.style.top = (portrait ? 110 : 150) + 'px';
       _cloudA.style.opacity = (1 - seg(p, 0.3, 0.7)).toFixed(3);
 
-      // Intro
       const intro = out(seg(now, t0 + 200, t0 + 1100));
 
-      // .t1
       _t1.style.opacity = (intro * (1 - seg(p, 0.62, 0.7))).toFixed(3);
       _t1.style.transform = `translateY(${((1 - intro) * 26 - p * 40).toFixed(2)}px)`;
       _t1.style.pointerEvents = p > 0.1 ? 'none' : 'auto';
 
-      // Logo
       _logo.style.opacity = (1 - seg(p, 0.12, 0.3)).toFixed(3);
 
-      // Island
       const e = io(seg(p, 0.04, 0.92));
       _palm.style.transform = `translate(${mix(-L.palm.w - 80, 0, e).toFixed(2)}px, ${mix(-170, 0, e).toFixed(2)}px) rotate(${(Math.sin(t * 0.8) * 0.7).toFixed(2)}deg)`;
       _capt.style.transform = `translateX(${mix(-L.capt.w - 160, 0, e).toFixed(2)}px) rotate(${(Math.sin(t * 1.1) * 0.5 * p).toFixed(2)}deg)`;
       _chest.style.transform = `translate(${mix(-L.chest.w - 720, 0, e).toFixed(2)}px, ${mix(120, 0, e).toFixed(2)}px)`;
 
-      // Foreground
       const b = out(seg(p, 0.5, 1));
       _bushL.style.transform = `translateY(${mix(340, 0, b).toFixed(2)}px)`;
       _bushR.style.transform = `translateY(${mix(300, 0, b).toFixed(2)}px)`;
 
-      // Scene 2 Copy
       const hk = seg(p, 0.42, 0.82);
       _h2.style.opacity = (hk * hk).toFixed(3);
       _h2.style.transform = `translateY(${mix(70, 0, out(hk)).toFixed(2)}px)`;
@@ -535,10 +657,8 @@ export default function App() {
       _btn2.style.transform = `scale(${mix(0.7, 1, back(bk)).toFixed(3)})`;
       _t2.style.pointerEvents = p > 0.9 ? 'auto' : 'none';
 
-      // Palm shade canvas
       _shade.style.transform = `translate(${(Math.sin(t * 0.35) * 2.2).toFixed(2)}%, ${(Math.cos(t * 0.27) * 1.6).toFixed(2)}%) rotate(${(Math.sin(t * 0.22) * 0.8).toFixed(2)}deg)`;
 
-      // Cursor easing
       if (cur && isFine) {
         const curScale = isDown ? 0.7 : isHoverLink ? 1.35 : 1;
         const f = 1 - Math.exp(-dt * 22);
@@ -547,7 +667,6 @@ export default function App() {
         cur.style.transform = `translate(${curX.toFixed(1)}px, ${curY.toFixed(1)}px) scale(${curScale})`;
       }
 
-      // Cursor ping
       if (ping && isFine) {
         const pingAge = now - pingT0;
         if (pingAge < 650) {
@@ -569,89 +688,153 @@ export default function App() {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
       window.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('mouseleave', onPointerLeave);
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('click', onClick);
-      document.documentElement.classList.remove('fine', 'portrait');
+      document.documentElement.classList.remove('fine', 'portrait', 'ui-game-open');
     };
   }, []);
 
   return (
     <>
       <main className="frame" id="frame" ref={frameRef}>
-        {/* Logo */}
-        <div
-          className="logo"
-          ref={logoRef}
-          data-go="0"
-          title="Энхлүүн — Нүүр хуудас"
-        >
-          <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-            <circle cx="13" cy="4.5" r="2.8" />
-            <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
-            <path d="m1 21 1.5-2.5L5 20.5M25 21l-1.5-2.5-2.5 2" />
-          </svg>
-          <span>Enkhluun</span>
-        </div>
+        {/* Top Chrome: Logo + Responsive Nav + Language Switch + Sound Toggle */}
+        <header className="top-chrome">
+          <div
+            className="logo"
+            ref={logoRef}
+            data-go="0"
+            title={isEn ? 'Enkhluun — Home' : 'Энхлүүн — Нүүр хуудас'}
+          >
+            <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <circle cx="13" cy="4.5" r="2.8" />
+              <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
+              <path d="m1 21 1.5-2.5L5 20.5M25 21l-1.5-2.5-2.5 2" />
+            </svg>
+            <span>Enkhluun</span>
+          </div>
 
-        {/* Nav */}
-        <nav>
-          <a href="#" data-go="0" title="Нүүр хуудас">
-            Нүүр
-            <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-              <circle cx="13" cy="4.5" r="2.8" />
-              <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
-            </svg>
-          </a>
-          <a href="#" data-go="1" title="Миний тухай">
-            Миний тухай
-            <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-              <circle cx="13" cy="4.5" r="2.8" />
-              <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
-            </svg>
-          </a>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              openModal('projects');
-            }}
-            className="highlight-nav flex items-center gap-1.5 font-bold"
-            title="Миний бүтээлүүд"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Миний бүтээлүүд
-          </a>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              openModal('interests');
-            }}
-            title="Сонирхол ба холбоосууд"
-          >
-            Сонирхол
-            <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-              <circle cx="13" cy="4.5" r="2.8" />
-              <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
-            </svg>
-          </a>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              openModal('contact');
-            }}
-            title="Холбоо барих"
-          >
-            Холбогдох
-            <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-              <circle cx="13" cy="4.5" r="2.8" />
-              <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
-            </svg>
-          </a>
-        </nav>
+          <div className="nav-wrap">
+            <nav>
+              <a href="#" data-go="0" title={isEn ? 'Home' : 'Нүүр хуудас'}>
+                {isEn ? 'Home' : 'Нүүр'}
+                <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                  <circle cx="13" cy="4.5" r="2.8" />
+                  <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
+                </svg>
+              </a>
+              <a href="#" data-go="1" title={isEn ? 'About Me' : 'Миний тухай'}>
+                {isEn ? 'About' : 'Миний тухай'}
+                <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                  <circle cx="13" cy="4.5" r="2.8" />
+                  <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
+                </svg>
+              </a>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openModal('projects');
+                }}
+                className="highlight-nav flex items-center gap-1.5 font-bold"
+                title={isEn ? 'My Projects' : 'Миний бүтээлүүд'}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                {isEn ? 'Projects' : 'Миний бүтээлүүд'}
+              </a>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openModal('games');
+                }}
+                className="flex items-center gap-1.5 font-bold"
+                title={isEn ? 'My Games' : 'Миний тоглоом'}
+              >
+                {isEn ? 'Games' : 'Миний тоглоом'}
+                <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                  <circle cx="13" cy="4.5" r="2.8" />
+                  <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
+                </svg>
+              </a>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openModal('interests');
+                }}
+                title={isEn ? 'Interests & Links' : 'Сонирхол ба холбоосууд'}
+              >
+                {isEn ? 'Interests' : 'Сонирхол'}
+                <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                  <circle cx="13" cy="4.5" r="2.8" />
+                  <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
+                </svg>
+              </a>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openModal('contact');
+                }}
+                title={isEn ? 'Contact' : 'Холбоо барих'}
+              >
+                {isEn ? 'Contact' : 'Холбогдох'}
+                <svg viewBox="0 0 26 30" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                  <circle cx="13" cy="4.5" r="2.8" />
+                  <path d="M13 7.5V28M7 12h12M2.5 19c.6 5.5 5.5 9 10.5 9s9.9-3.5 10.5-9" />
+                </svg>
+              </a>
+            </nav>
+          </div>
+
+          <div className="nav-controls">
+            {/* MN / EN Language Switch */}
+            <div
+              role="group"
+              aria-label={isEn ? 'Language switch' : 'Хэл солих'}
+              className="inline-flex items-center p-0.5 rounded-full border-2 border-[var(--line)] bg-[#f8f5ec]"
+            >
+              {(['mn', 'en'] as const).map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => handleLangChange(code)}
+                  className={`px-2 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider transition-colors cursor-pointer ${
+                    lang === code
+                      ? 'bg-[var(--line)] text-[var(--paper)]'
+                      : 'text-[var(--ink)] hover:bg-[#e2dcce]'
+                  }`}
+                >
+                  {code.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Global Sound Toggle */}
+            <button
+              type="button"
+              data-sfx="custom"
+              onClick={handleToggleSound}
+              aria-label={soundMuted ? (isEn ? 'Unmute sound' : 'Дуу асаах') : (isEn ? 'Mute sound' : 'Дуу хаах')}
+              title={soundMuted ? (isEn ? 'Unmute sound' : 'Дуу асаах') : (isEn ? 'Mute sound' : 'Дуу хаах')}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border-2 border-[var(--line)] bg-[#f8f5ec] hover:bg-[#e2dcce] text-[10px] font-extrabold uppercase tracking-wider text-[var(--ink)] transition-colors cursor-pointer whitespace-nowrap"
+            >
+              {soundMuted ? (
+                <VolumeX className="w-3.5 h-3.5 text-[#6d6657]" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-amber-800" />
+              )}
+              <span className="hidden xl:inline">
+                {soundMuted ? (isEn ? 'Muted' : 'Дуугүй') : (isEn ? 'Sound' : 'Дуутай')}
+              </span>
+            </button>
+          </div>
+        </header>
 
         {/* Scene Container */}
         <div id="scene" ref={sceneRef}>
@@ -670,9 +853,21 @@ export default function App() {
 
           {/* Scene 1 Copy */}
           <div className="t1" id="t1" ref={t1Ref}>
-            <div className="eb tracking-wider">12 Настай Бүтээгч · Ирээдүйн Mechanical Engineer</div>
+            <div className="eb tracking-wider">
+              {isEn
+                ? '12-Year-Old Builder · Future Mechanical Engineer'
+                : '12 Настай Бүтээгч · Ирээдүйн Mechanical Engineer'}
+            </div>
             <h1>
-              Sain uu,<br />namaig Enkhluun gedeg
+              {isEn ? (
+                <>
+                  Hi there,<br />I&apos;m Enkhluun
+                </>
+              ) : (
+                <>
+                  Sain uu,<br />namaig Enkhluun gedeg
+                </>
+              )}
             </h1>
             <div className="flex items-center gap-3 mt-8 flex-wrap">
               <button
@@ -681,14 +876,22 @@ export default function App() {
                 className="pill flex items-center gap-2 bg-[#e2dcce] hover:bg-[#d8d0bf] font-bold"
               >
                 <Sparkles className="w-4 h-4 text-amber-700" />
-                Миний бүтээлүүд
+                {isEn ? 'My Projects' : 'Миний бүтээлүүд'}
+              </button>
+              <button
+                type="button"
+                onClick={() => openModal('games')}
+                className="pill flex items-center gap-2 bg-[#ece7d8] hover:bg-[#dfd8c6] font-bold"
+              >
+                <Gamepad2 className="w-4 h-4 text-stone-800" />
+                {isEn ? 'My Games' : 'Миний тоглоом'}
               </button>
               <button
                 type="button"
                 onClick={() => goRef.current(1)}
                 className="pill bg-[#f5f1e6] hover:bg-[#eae3d2]"
               >
-                Миний тухай үзэх
+                {isEn ? 'Explore About Me' : 'Миний тухай үзэх'}
               </button>
             </div>
           </div>
@@ -714,10 +917,20 @@ export default function App() {
           {/* Scene 2 Copy */}
           <div className="t2" id="t2" ref={t2Ref}>
             <h2 id="h2" ref={h2Ref}>
-              Механик &amp;<br />Инноваци
+              {isEn ? (
+                <>
+                  Mechanics &amp;<br />Innovation
+                </>
+              ) : (
+                <>
+                  Механик &amp;<br />Инноваци
+                </>
+              )}
             </h2>
             <p id="p2" ref={p2Ref}>
-              12 нас · 18+ LEGO угсрагч · Морин хуурч · Картинг уралдаанч · Код бүтээгч
+              {isEn
+                ? 'Age 12 · 18+ LEGO Builder · Morin Khuur Player · Kart Racer · Web Coder'
+                : '12 нас · 18+ LEGO угсрагч · Морин хуурч · Картинг уралдаанч · Код бүтээгч'}
             </p>
             <span className="btnw" id="btn2" ref={btn2Ref}>
               <i className="tick a"></i>
@@ -731,7 +944,7 @@ export default function App() {
                   openModal('about');
                 }}
               >
-                Бүх мэдээллийг үзэх
+                {isEn ? 'View All Details' : 'Бүх мэдээллийг үзэх'}
               </button>
             </span>
           </div>
@@ -745,8 +958,8 @@ export default function App() {
       <div id="ping" ref={pingRef}></div>
       <div id="cur" ref={curRef}></div>
 
-      {/* Comprehensive Modal: Бүтээлүүд & Миний тухай */}
-      {showModal && (
+      {/* Comprehensive Modal: Бүтээлүүд, Миний тоглоом & Миний тухай */}
+      {showModal && !activeGameWindow && (
         <div
           className="articles-modal-backdrop"
           onClick={() => {
@@ -759,43 +972,82 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b-2 border-[var(--line)] pb-4 mb-4">
-              <div>
-                <div className="text-[11px] font-bold tracking-[0.2em] text-[#6d6657] uppercase font-mono">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-start justify-between gap-3 border-b-2 border-[var(--line)] pb-4 mb-4">
+              <div className="min-w-0">
+                <div className="text-[10px] sm:text-[11px] font-bold tracking-[0.18em] text-[#6d6657] uppercase font-mono">
                   Enkhluun · Personal Portfolio &amp; Projects
                 </div>
-                <h3 className="text-2xl font-bold uppercase tracking-tight text-[var(--ink)] font-serif mt-0.5">
-                  Энхлүүн · 12 Настай Бүтээгч
+                <h3 className="text-xl sm:text-2xl font-bold uppercase tracking-tight text-[var(--ink)] font-serif mt-0.5">
+                  {isEn ? 'Enkhluun · 12-Year-Old Creator' : 'Энхлүүн · 12 Настай Бүтээгч'}
                 </h3>
                 <p className="text-xs text-[#5a5243] mt-0.5 font-medium">
-                  Mechanical Engineer болох мөрөөдөлтэй сурагч ба код бүтээгч
+                  {isEn
+                    ? 'Student & coder dreaming of becoming a Mechanical Engineer'
+                    : 'Mechanical Engineer болох мөрөөдөлтэй сурагч ба код бүтээгч'}
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setPreviewUrl(null);
-                }}
-                className="p-1.5 rounded-lg border-2 border-[var(--line)] bg-[#e8e2d2] text-[var(--ink)] hover:bg-[#dbd3be] transition-colors cursor-pointer"
-                aria-label="Хаах"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center justify-end gap-2 shrink-0">
+                <div
+                  role="group"
+                  aria-label={isEn ? 'Language switch' : 'Хэл солих'}
+                  className="inline-flex items-center p-0.5 rounded-lg border-2 border-[var(--line)] bg-[#f8f5ec]"
+                >
+                  {(['mn', 'en'] as const).map((code) => (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => handleLangChange(code)}
+                      className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase tracking-wider transition-colors cursor-pointer ${
+                        lang === code
+                          ? 'bg-[var(--line)] text-[var(--paper)]'
+                          : 'text-[var(--ink)] hover:bg-[#e2dcce]'
+                      }`}
+                    >
+                      {code.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  data-sfx="custom"
+                  onClick={handleToggleSound}
+                  aria-label={soundMuted ? (isEn ? 'Unmute sound' : 'Дуу асаах') : (isEn ? 'Mute sound' : 'Дуу хаах')}
+                  title={soundMuted ? (isEn ? 'Unmute sound' : 'Дуу асаах') : (isEn ? 'Mute sound' : 'Дуу хаах')}
+                  className="p-1.5 rounded-lg border-2 border-[var(--line)] bg-[#f8f5ec] text-[var(--ink)] hover:bg-[#e2dcce] transition-colors cursor-pointer"
+                >
+                  {soundMuted ? (
+                    <VolumeX className="w-4 h-4 text-[#6d6657]" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-amber-800" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    setPreviewUrl(null);
+                  }}
+                  className="p-1.5 rounded-lg border-2 border-[var(--line)] bg-[#e8e2d2] text-[var(--ink)] hover:bg-[#dbd3be] transition-colors cursor-pointer"
+                  aria-label={isEn ? 'Close' : 'Хаах'}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex flex-wrap gap-2 mb-5 p-1.5 bg-[#e4decd] border-2 border-[var(--line)] rounded-xl">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4 sm:mb-5 p-1.5 bg-[#e4decd] border-2 border-[var(--line)] rounded-xl">
               <button
                 type="button"
                 onClick={() => setActiveTab('projects')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
                   activeTab === 'projects'
                     ? 'bg-[var(--line)] text-[var(--paper)] shadow-sm'
                     : 'text-[#4a4235] hover:bg-[#d6cfbc]'
                 }`}
               >
                 <Code2 className="w-3.5 h-3.5" />
-                Миний бүтээлүүд
+                {isEn ? 'My Projects' : 'Миний бүтээлүүд'}
                 <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-stone-900 rounded-full text-[10px] font-extrabold">
                   2
                 </span>
@@ -803,41 +1055,57 @@ export default function App() {
 
               <button
                 type="button"
+                onClick={() => setActiveTab('games')}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                  activeTab === 'games'
+                    ? 'bg-[var(--line)] text-[var(--paper)] shadow-sm'
+                    : 'text-[#4a4235] hover:bg-[#d6cfbc]'
+                }`}
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                {isEn ? 'My Games' : 'Миний тоглоом'}
+                <span className="ml-1 px-1.5 py-0.2 bg-emerald-700 text-emerald-100 rounded-full text-[10px] font-extrabold">
+                  2
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveTab('about')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
                   activeTab === 'about'
                     ? 'bg-[var(--line)] text-[var(--paper)] shadow-sm'
                     : 'text-[#4a4235] hover:bg-[#d6cfbc]'
                 }`}
               >
-                <User className="w-3.5 h-3.5" />
-                Миний тухай
+                <Wrench className="w-3.5 h-3.5" />
+                {isEn ? 'About Me' : 'Миний тухай'}
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('interests')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
                   activeTab === 'interests'
                     ? 'bg-[var(--line)] text-[var(--paper)] shadow-sm'
                     : 'text-[#4a4235] hover:bg-[#d6cfbc]'
                 }`}
               >
                 <Compass className="w-3.5 h-3.5" />
-                Сонирхол ба Холбоосууд
+                {isEn ? 'Interests & Links' : 'Сонирхол ба Холбоосууд'}
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('contact')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
                   activeTab === 'contact'
                     ? 'bg-[var(--line)] text-[var(--paper)] shadow-sm'
                     : 'text-[#4a4235] hover:bg-[#d6cfbc]'
                 }`}
               >
                 <Mail className="w-3.5 h-3.5" />
-                Холбоо барих
+                {isEn ? 'Contact' : 'Холбоо барих'}
               </button>
             </div>
 
@@ -848,32 +1116,36 @@ export default function App() {
                   <div>
                     <h4 className="font-bold text-sm text-[var(--ink)] uppercase flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-amber-700" />
-                      Миний хийсэн бүтээлүүд
+                      {isEn ? 'Projects I Built' : 'Миний хийсэн бүтээлүүд'}
                     </h4>
                     <p className="text-xs text-[#554d3e] mt-0.5">
-                      Энхлүүний бие даан код бичиж Netlify дээр байршуулсан бодит төслүүд
+                      {isEn
+                        ? 'Real web projects independently coded by Enkhluun and deployed on Netlify'
+                        : 'Энхлүүний бие даан код бичиж Netlify дээр байршуулсан бодит төслүүд'}
                     </p>
                   </div>
                   <span className="text-[11px] font-mono px-2 py-1 bg-[#d5cebc] rounded border border-[var(--line)]">
-                    2 Веб Төсөл
+                    {isEn ? '2 Web Projects' : '2 Веб Төсөл'}
                   </span>
                 </div>
 
-                {/* Project 1: eb-7c34ee.netlify.app */}
+                {/* Project 1 */}
                 <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl shadow-sm transition-all hover:border-[#000]">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-800 text-emerald-100 rounded">
-                          Бие даасан веб
+                          {isEn ? 'Independent Site' : 'Бие даасан веб'}
                         </span>
                         <span className="text-[11px] text-[#736a57] font-mono">Netlify Deploy</span>
                       </div>
                       <h5 className="text-base font-bold text-[var(--ink)] mt-1.5">
-                        Minii uuruu code bichsen taniltsuulga site
+                        {isEn ? 'My Self-Coded Introduction Site' : 'Minii uuruu code bichsen taniltsuulga site'}
                       </h5>
                       <p className="text-xs text-[#4d4436] mt-1 leading-relaxed">
-                        Энхлүүний өөрөө код бичиж бүтээсэн онлайн танилцуулга хуудас. Мөрөөдөл, сонирхол, өөрийн тухай бүх мэдээллээ бүтэцтэйгээр кодчилсон бүтээл.
+                        {isEn
+                          ? 'An online personal introduction website coded by Enkhluun from scratch, showcasing his dreams, hobbies, and story.'
+                          : 'Энхлүүний өөрөө код бичиж бүтээсэн онлайн танилцуулга хуудас. Мөрөөдөл, сонирхол, өөрийн тухай бүх мэдээллээ бүтэцтэйгээр кодчилсон бүтээл.'}
                       </p>
                       <div className="flex flex-wrap gap-1.5 mt-2.5">
                         <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">HTML5</span>
@@ -890,7 +1162,7 @@ export default function App() {
                         rel="noreferrer"
                         className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--line)] text-stone-100 rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
                       >
-                        <span>Сайтаар зочлох</span>
+                        <span>{isEn ? 'Visit Site' : 'Сайтаар зочлох'}</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                       <button
@@ -899,7 +1171,15 @@ export default function App() {
                         className="flex items-center justify-center gap-1 px-3 py-1.5 border border-[var(--line)] bg-[#ede7d8] rounded-lg text-xs font-medium hover:bg-[#dfd7c4] transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>{previewUrl === 'https://eb-7c34ee.netlify.app/' ? 'Урьдчилан харахыг хаах' : 'Энд харах'}</span>
+                        <span>
+                          {previewUrl === 'https://eb-7c34ee.netlify.app/'
+                            ? isEn
+                              ? 'Hide Preview'
+                              : 'Урьдчилан харахыг хаах'
+                            : isEn
+                              ? 'Preview Here'
+                              : 'Энд харах'}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -907,7 +1187,7 @@ export default function App() {
                   {previewUrl === 'https://eb-7c34ee.netlify.app/' && (
                     <div className="mt-3 pt-3 border-t border-[var(--line)]">
                       <div className="flex justify-between items-center mb-1.5 text-xs text-[#615949]">
-                        <span>Шууд харагдац (Live Preview):</span>
+                        <span>{isEn ? 'Live Preview:' : 'Шууд харагдац (Live Preview):'}</span>
                         <a href="https://eb-7c34ee.netlify.app/" target="_blank" rel="noreferrer" className="underline font-mono">
                           https://eb-7c34ee.netlify.app/
                         </a>
@@ -915,27 +1195,29 @@ export default function App() {
                       <iframe
                         src="https://eb-7c34ee.netlify.app/"
                         title="Enkhluun Portfolio Preview"
-                        className="w-full h-72 border-2 border-[var(--line)] rounded-lg bg-white"
+                        className="w-full h-52 sm:h-72 border-2 border-[var(--line)] rounded-lg bg-white"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Project 2: js-practicee.netlify.app */}
+                {/* Project 2 */}
                 <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl shadow-sm transition-all hover:border-[#000]">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-700 text-amber-100 rounded">
-                          JavaScript дасгал
+                          {isEn ? 'JavaScript Practice' : 'JavaScript дасгал'}
                         </span>
                         <span className="text-[11px] text-[#736a57] font-mono">Netlify Deploy</span>
                       </div>
                       <h5 className="text-base font-bold text-[var(--ink)] mt-1.5">
-                        minii anhnii javascript dasgal
+                        {isEn ? 'My First JavaScript Practice' : 'minii anhnii javascript dasgal'}
                       </h5>
                       <p className="text-xs text-[#4d4436] mt-1 leading-relaxed">
-                        JavaScript програмчлалын хэл сурч эхлэхдээ хийсэн анхны дасгал ажил, тооцоолол, интерактив логик туршилтууд.
+                        {isEn
+                          ? 'First interactive JavaScript exercises, calculations, and DOM logic experiments built while learning to code.'
+                          : 'JavaScript програмчлалын хэл сурч эхлэхдээ хийсэн анхны дасгал ажил, тооцоолол, интерактив логик туршилтууд.'}
                       </p>
                       <div className="flex flex-wrap gap-1.5 mt-2.5">
                         <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">JavaScript</span>
@@ -952,7 +1234,7 @@ export default function App() {
                         rel="noreferrer"
                         className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[var(--line)] text-stone-100 rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
                       >
-                        <span>Сайтаар зочлох</span>
+                        <span>{isEn ? 'Visit Site' : 'Сайтаар зочлох'}</span>
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                       <button
@@ -961,7 +1243,15 @@ export default function App() {
                         className="flex items-center justify-center gap-1 px-3 py-1.5 border border-[var(--line)] bg-[#ede7d8] rounded-lg text-xs font-medium hover:bg-[#dfd7c4] transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>{previewUrl === 'https://js-practicee.netlify.app/' ? 'Урьдчилан харахыг хаах' : 'Энд харах'}</span>
+                        <span>
+                          {previewUrl === 'https://js-practicee.netlify.app/'
+                            ? isEn
+                              ? 'Hide Preview'
+                              : 'Урьдчилан харахыг хаах'
+                            : isEn
+                              ? 'Preview Here'
+                              : 'Энд харах'}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -969,7 +1259,7 @@ export default function App() {
                   {previewUrl === 'https://js-practicee.netlify.app/' && (
                     <div className="mt-3 pt-3 border-t border-[var(--line)]">
                       <div className="flex justify-between items-center mb-1.5 text-xs text-[#615949]">
-                        <span>Шууд харагдац (Live Preview):</span>
+                        <span>{isEn ? 'Live Preview:' : 'Шууд харагдац (Live Preview):'}</span>
                         <a href="https://js-practicee.netlify.app/" target="_blank" rel="noreferrer" className="underline font-mono">
                           https://js-practicee.netlify.app/
                         </a>
@@ -977,7 +1267,7 @@ export default function App() {
                       <iframe
                         src="https://js-practicee.netlify.app/"
                         title="JS Practice Preview"
-                        className="w-full h-72 border-2 border-[var(--line)] rounded-lg bg-white"
+                        className="w-full h-52 sm:h-72 border-2 border-[var(--line)] rounded-lg bg-white"
                       />
                     </div>
                   )}
@@ -986,36 +1276,42 @@ export default function App() {
                 {/* Additional Engineering & Creative Highlights */}
                 <div className="pt-2">
                   <div className="text-xs uppercase font-bold text-[#635b4b] mb-2 tracking-wider">
-                    Бусад инженерчлэл &amp; бүтээлч туршлагууд
+                    {isEn ? 'Other Engineering & Creative Highlights' : 'Бусад инженерчлэл & бүтээлч туршлагууд'}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <div className="p-3 bg-[#e6dfce] border-2 border-[var(--line)] rounded-xl">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--ink)]">
                         <Boxes className="w-4 h-4 text-rose-700" />
-                        18+ LEGO загварууд
+                        {isEn ? '18+ LEGO Builds' : '18+ LEGO загварууд'}
                       </div>
                       <p className="text-[11px] text-[#4d4436] mt-1 leading-normal">
-                        Нарийн төвөгтэй 18+ LEGO загварыг 1-2 хоногт бүрэн угсарч ажиллуулдаг.
+                        {isEn
+                          ? 'Completes complex 18+ LEGO mechanical sets in just 1–2 days.'
+                          : 'Нарийн төвөгтэй 18+ LEGO загварыг 1-2 хоногт бүрэн угсарч ажиллуулдаг.'}
                       </p>
                     </div>
 
                     <div className="p-3 bg-[#e6dfce] border-2 border-[var(--line)] rounded-xl">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--ink)]">
                         <Trophy className="w-4 h-4 text-amber-700" />
-                        Картингийн уралдаан
+                        {isEn ? 'Kart Racing' : 'Картингийн уралдаан'}
                       </div>
                       <p className="text-[11px] text-[#4d4436] mt-1 leading-normal">
-                        Картинг спортоор уралдаж, моторын хүч болон траектор судалдаг.
+                        {isEn
+                          ? 'Races go-karts regularly while studying engine power and racing lines.'
+                          : 'Картинг спортоор уралдаж, моторын хүч болон траектор судалдаг.'}
                       </p>
                     </div>
 
                     <div className="p-3 bg-[#e6dfce] border-2 border-[var(--line)] rounded-xl">
                       <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--ink)]">
                         <Music className="w-4 h-4 text-cyan-800" />
-                        Морин хуур урлаг
+                        {isEn ? 'Morin Khuur Music' : 'Морин хуур урлаг'}
                       </div>
                       <p className="text-[11px] text-[#4d4436] mt-1 leading-normal">
-                        Монгол ардын уламжлалт морин хуур хөгжмийг тоглож чаддаг авьяастай.
+                        {isEn
+                          ? 'Talented player of the traditional Mongolian horsehead fiddle.'
+                          : 'Монгол ардын уламжлалт морин хуур хөгжмийг тоглож чаддаг авьяастай.'}
                       </p>
                     </div>
                   </div>
@@ -1023,149 +1319,340 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 2: МИНИЙ ТУХАЙ (БҮРЭН МЭДЭЭЛЭЛ) */}
-            {activeTab === 'about' && (
+            {/* TAB: МИНИЙ ТОГЛООМ */}
+            {activeTab === 'games' && (
               <div className="space-y-4">
-                {/* Hero Profile Card */}
-                <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <div className="p-3 bg-[#e8e2d0] border-2 border-[var(--line)] rounded-xl flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-sm text-[var(--ink)] uppercase flex items-center gap-2">
+                      <Gamepad2 className="w-4 h-4 text-emerald-800" />
+                      {isEn ? 'My Games' : 'Миний тоглоомууд'}
+                    </h4>
+                    <p className="text-xs text-[#554d3e] mt-0.5">
+                      {isEn
+                        ? 'Click a game to launch it in a dedicated full-screen window'
+                        : 'Тоглоом дээр дарахад тусдаа цонхонд нээгдэж тоглоно'}
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-mono px-2 py-1 bg-[#d5cebc] rounded border border-[var(--line)] shrink-0">
+                    {isEn ? '2 Games' : '2 Тоглоом'}
+                  </span>
+                </div>
+
+                {/* Game 1: Anime Guess */}
+                <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl shadow-sm transition-all hover:border-[#000]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <span className="text-[10px] font-bold tracking-widest uppercase bg-[#ded7c5] px-2 py-0.5 rounded border border-[var(--line)]">
-                        Танилцуулга
-                      </span>
-                      <h4 className="text-xl font-bold text-[var(--ink)] mt-1.5 font-serif">
-                        Sain uu, namaig Enkhluun gedeg!
-                      </h4>
-                      <p className="text-sm text-[#453e32] font-semibold mt-1">
-                        Би 12 нас энэ жил хүрнэ. Би mechanical engineer болохыг хүсдэг.
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-900 text-indigo-100 rounded">
+                          {isEn ? 'Dedicated Window' : 'Тусдаа цонхоор тоглох'}
+                        </span>
+                        <span className="text-[11px] text-[#736a57] font-mono">
+                          {isEn ? '4 Modes · 60 Questions' : '4 Ангилал · 60 Асуулт'}
+                        </span>
+                      </div>
+                      <h5 className="text-lg font-bold text-[var(--ink)] mt-1.5 flex items-center gap-2">
+                        <span>🍥 Anime Guess</span>
+                      </h5>
+                      <p className="text-xs text-[#4d4436] mt-1 leading-relaxed">
+                        {isEn
+                          ? 'Guess characters from Naruto, One Piece, Demon Slayer, Jujutsu Kaisen, and classics from 3 emoji clues in 10 seconds.'
+                          : 'Наруто, One Piece, Demon Slayer, Jujutsu Kaisen болон сонгодог анимэ дүрүүдийг 3 эможи сэжүүрээр 10 секундийн дотор таах тоглоом.'}
                       </p>
-                      <p className="text-xs text-[#5a5243] mt-2 leading-relaxed">
-                        Техник төхөөрөмж, хөдөлгүүр, код болон физик тооцоололд дуртай. Ирээдүйд шилдэг инженер болж, хүн төрөлхтөнд хэрэгтэй механизмуудыг зохион бүтээх том мөрөөдөлтэй.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="overflow-hidden rounded-lg border-2 border-[var(--line)] shadow-sm">
-                        <img
-                          src="https://www.vaughn.edu/wp-content/uploads/2021/01/Mechanical-Engineering-Jobs_Feature.jpg"
-                          alt="Mechanical Engineering Jobs"
-                          className="w-full h-28 object-cover hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="p-1.5 bg-[#e4ddcc] text-[10px] font-mono text-center font-bold text-[var(--ink)]">
-                          Мөрөөдлийн мэргэжил: Mechanical Engineer
-                        </div>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          {isEn ? '3 lives' : '3 амь'}
+                        </span>
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          {isEn ? '10s timer' : '10с хугацаа'}
+                        </span>
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          {isEn ? 'Streak bonus' : 'Streak бонус'}
+                        </span>
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          {isEn ? 'Keys 1–4' : '1–4 товч'}
+                        </span>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => openGameInSeparateWindow('anime')}
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--line)] text-stone-100 rounded-xl text-xs font-bold uppercase tracking-wide hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>{isEn ? 'Play in Window' : 'Тусдаа цонхонд тоглох'}</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* 9 Facts Grid from minii tuhai html */}
-                <div>
-                  <div className="text-xs font-bold text-[#5c5445] uppercase tracking-wider mb-2.5">
-                    Миний тухай 9 гол баримт (Original About Me Data)
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Wrench className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">1. Механик Инженер</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi mechanical engineer bolohiin husdeg"</span> — Механик инженер болохын тулд техник, код, математик судалж байна.
-                        </p>
+                {/* Game 2: Sports Emoji Guesser */}
+                <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl shadow-sm transition-all hover:border-[#000]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-800 text-amber-100 rounded">
+                          {isEn ? 'Dedicated Window' : 'Тусдаа цонхоор тоглох'}
+                        </span>
+                        <span className="text-[11px] text-[#736a57] font-mono">
+                          {isEn ? '4 Modes · 60 Questions' : '4 Ангилал · 60 Асуулт'}
+                        </span>
+                      </div>
+                      <h5 className="text-lg font-bold text-[var(--ink)] mt-1.5 flex items-center gap-2">
+                        <span>🏆 Sports Emoji Guesser</span>
+                      </h5>
+                      <p className="text-xs text-[#4d4436] mt-1 leading-relaxed">
+                        {isEn
+                          ? 'Guess top athletes and racers across Football, Basketball, Formula 1, and MotoGP from emoji clues.'
+                          : 'Хөлбөмбөг, Сагсан бөмбөг, Formula 1 болон MotoGP-ийн шилдэг тамирчид, нисгэгчдийг эможи сэжүүрээр таах тоглоом.'}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          ⚽ {isEn ? 'Football' : 'Хөлбөмбөг'}
+                        </span>
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          🏀 {isEn ? 'Basketball' : 'Сагсан бөмбөг'}
+                        </span>
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          🏎️ F1
+                        </span>
+                        <span className="px-2 py-0.5 bg-[#e3dccb] text-[#2c261e] rounded text-[10px] font-semibold">
+                          🏍️ MotoGP
+                        </span>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Boxes className="w-5 h-5 text-rose-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">2. 18+ LEGO Угсрагч</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi 18+ lego egluuldeg 1-2 honog boldog"</span> — Хүнд түвшний 18+ LEGO загваруудыг ердөө 1-2 өдөрт угсарч дуусгадаг.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Music className="w-5 h-5 text-indigo-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">3. Морин Хуур Тоглодог</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi morin khuur togloj cdn"</span> — Монгол үндэсний бахархалт морин хуур хөгжмийг чадамгай эзэмшсэн.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Calculator className="w-5 h-5 text-emerald-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">4. Математиктаа Сайн</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"mat deeree sain"</span> — Математикийн бодлого, логик сэтгэлгээний төрөлд өндөр үр дүнтэй.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Flame className="w-5 h-5 text-orange-700 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">5. Мотортой Машин, Мотоцикл</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi motortoi mashin motorcycle nuud sonirhodog"</span> — Хөдөлгүүрийн бүтэц, моторын ажиллагаанд дуртай.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Flag className="w-5 h-5 text-red-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">6. Картинг Уралдаан</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi kartingaar uralddg odoo uraldaan bolno"</span> — Картингийн спортлог замаар хурдалдаг, удахгүй уралдаанд орно.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Trophy className="w-5 h-5 text-yellow-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">7. Formula 1 &amp; Max Verstappen</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi formula 1 iin max verstappen demjdeg"</span> — F1 уралдааныг алгасалгүй үзэж, дэлхийн аваргыг дэмждэг.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5">
-                      <Languages className="w-5 h-5 text-blue-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">8. Англи хэл B1 түвшин</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi b1 englishiin tuvsun"</span> — Англи хэлээр ном, техникийн бичиг баримт ойлгох чадвартай.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-xl flex items-start gap-2.5 sm:col-span-2">
-                      <Gamepad2 className="w-5 h-5 text-purple-800 shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-xs font-bold text-[var(--ink)]">9. Roblox Rivals &amp; Ангийн хамт олон</div>
-                        <p className="text-[11.5px] text-[#4d4436] mt-0.5">
-                          <span className="font-semibold">"bi roblox deer rivals togloh durtai"</span> бөгөөд <span className="font-semibold">"manai angi bolvol goy shuu hyatad solongos hel"</span> — Roblox дээр Rivals тоглох дуртай, анги хамт олноороо Хятад болон Солонгос хэлний хичээл үздэг.
-                        </p>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openGameInSeparateWindow('sports')}
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--line)] text-stone-100 rounded-xl text-xs font-bold uppercase tracking-wide hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>{isEn ? 'Play in Window' : 'Тусдаа цонхонд тоглох'}</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Formula 1 Image banner from html */}
-                <div className="rounded-xl border-2 border-[var(--line)] overflow-hidden bg-[#e4decd]">
-                  <img
-                    src="https://www.apple.com/newsroom/images/2025/10/apple-is-the-exclusive-new-broadcast-partner-for-formula-1-in-the-us/tile/Apple-exclusive-F1-partner-lp.jpg.landing-big_2x.jpg"
-                    alt="Formula 1 Racing"
-                    className="w-full h-36 object-cover"
+                {/* Live Firestore Leaderboard inside Parchment Scroll */}
+                <div className="pt-3 border-t-2 border-[var(--line)]/15">
+                  <Leaderboard
+                    lang={lang}
+                    initialGameFilter="Anime Guess"
+                    compact
+                    maxEntries={10}
+                    title={isEn ? 'Leaderboard' : 'Тэргүүлэгчдийн Самбар'}
+                    subtitle={isEn ? "Firestore 'scores' · Live Standings" : "Firestore 'scores' · Шууд эрэмбэ"}
+                    onPlayClick={() => openGameInSeparateWindow('anime')}
+                    playLabel={isEn ? 'Play Anime Guess' : 'Anime Guess тоглох'}
                   />
-                  <div className="p-2 text-center text-[11px] font-bold text-[#3d372c]">
-                    🏎️ Formula 1 Racing · Speed, Aerodynamics &amp; Mechanical Engineering
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: МИНИЙ ТУХАЙ (БҮХ МЭДЭЭЛЭЛ) */}
+            {activeTab === 'about' && (
+              <div className="space-y-5">
+                {/* 2-Column Profile Header & Quick Ledger */}
+                <div className="bg-[#f8f5ec] border-2 border-[var(--line)] rounded-2xl p-5 sm:p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                    <div className="md:col-span-7">
+                      <div className="text-[11px] font-bold tracking-[0.16em] uppercase text-[#6d6657]">
+                        {isEn ? 'Personal Profile · Enkhluun' : 'Хувийн танилцуулга · Энхлүүн'}
+                      </div>
+                      <h4 className="text-2xl sm:text-3xl font-bold text-[var(--ink)] mt-1.5 font-serif leading-tight">
+                        {isEn ? "Hi there, I'm Enkhluun!" : 'Sain uu, namaig Enkhluun gedeg!'}
+                      </h4>
+                      <p className="text-sm text-[#352f25] font-semibold mt-2">
+                        {isEn
+                          ? 'I am turning 12 this year, aiming to become a Mechanical Engineer.'
+                          : 'Би энэ жил 12 нас хүрнэ. Ирээдүйд Mechanical Engineer болох зорилготой.'}
+                      </p>
+                      <p className="text-xs text-[#5a5243] mt-2.5 leading-relaxed">
+                        {isEn
+                          ? 'Passionate about machinery, engines, mathematics, coding, and motorsports. Building new things and assembling intricate mechanisms is my favorite activity.'
+                          : 'Техник төхөөрөмж, хөдөлгүүр, математик, код бичих болон авто спортод гүн сонирхолтой. Шинэ зүйл бүтээж, нарийн механизмуудыг угсарч турших нь миний хамгийн дуртай ажил.'}
+                      </p>
+                    </div>
+
+                    {/* Quick Facts Ledger */}
+                    <div className="md:col-span-5 md:border-l-2 md:border-[var(--line)]/15 md:pl-5 space-y-2.5 text-xs">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#6d6657] pb-1 border-b border-[var(--line)]/15">
+                        {isEn ? 'Quick Facts' : 'Товч мэдээлэл'}
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-1 border-b border-[var(--line)]/10">
+                        <span className="text-[#6d6657]">{isEn ? 'Age' : 'Нас'}</span>
+                        <span className="font-bold text-[var(--ink)] tabular-nums">
+                          {isEn ? '12 years old' : '12 нас'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-1 border-b border-[var(--line)]/10">
+                        <span className="text-[#6d6657]">{isEn ? 'Goal' : 'Мөрөөдөл'}</span>
+                        <span className="font-bold text-[var(--ink)]">Mechanical Engineer</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-1 border-b border-[var(--line)]/10">
+                        <span className="text-[#6d6657]">{isEn ? 'Favorite F1 Driver' : 'Дэмждэг F1'}</span>
+                        <span className="font-bold text-[var(--ink)]">Max Verstappen</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-1 border-b border-[var(--line)]/10">
+                        <span className="text-[#6d6657]">{isEn ? 'English' : 'Англи хэл'}</span>
+                        <span className="font-bold text-[var(--ink)] tabular-nums">
+                          {isEn ? 'B1 Level' : 'B1 түвшин'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-1">
+                        <span className="text-[#6d6657]">{isEn ? 'Other Languages' : 'Нэмэлт хэл'}</span>
+                        <span className="font-bold text-[var(--ink)]">
+                          {isEn ? 'Chinese · Korean' : 'Хятад · Солонгос'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3-Column Organized Information Pillars */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Pillar 01 */}
+                  <div className="p-4 bg-[#ebe5d4] border-2 border-[var(--line)] rounded-2xl flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between border-b border-[var(--line)]/20 pb-2.5 mb-3">
+                        <span className="font-mono text-xs font-bold text-[#6d6657]">01</span>
+                        <Wrench className="w-4 h-4 text-[var(--ink)]" />
+                      </div>
+                      <h5 className="text-sm font-extrabold uppercase tracking-wide text-[var(--ink)] mb-3">
+                        {isEn ? 'Engineering & Mind' : 'Инженерчлэл & Оюун'}
+                      </h5>
+                      <ul className="space-y-3 text-xs text-[#3f382c]">
+                        <li>
+                          <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                            <Calculator className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+                            {isEn ? 'Mathematics' : 'Математик'}
+                          </div>
+                          <p className="text-[#5a5243] mt-0.5 leading-relaxed">
+                            {isEn
+                              ? 'Strong in math, building analytical problem-solving skills toward a career in mechanical engineering.'
+                              : 'Математикийн хичээлдээ сайн, тооцоолол болон логик сэтгэлгээндээ тулгуурлан инженер болохоор бэлддэг.'}
+                          </p>
+                        </li>
+                        <li>
+                          <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                            <Boxes className="w-3.5 h-3.5 text-amber-800 shrink-0" />
+                            {isEn ? '18+ LEGO Building' : '18+ LEGO угсралт'}
+                          </div>
+                          <p className="text-[#5a5243] mt-0.5 leading-relaxed">
+                            {isEn
+                              ? 'Independently assembles complex 18+ LEGO mechanical sets within 1–2 days.'
+                              : 'Нарийн бүтэцтэй 18+ LEGO загваруудыг 1–2 хоногийн дотор бие даан угсардаг.'}
+                          </p>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Pillar 02 */}
+                  <div className="p-4 bg-[#ebe5d4] border-2 border-[var(--line)] rounded-2xl flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between border-b border-[var(--line)]/20 pb-2.5 mb-3">
+                        <span className="font-mono text-xs font-bold text-[#6d6657]">02</span>
+                        <Flag className="w-4 h-4 text-rose-700" />
+                      </div>
+                      <h5 className="text-sm font-extrabold uppercase tracking-wide text-[var(--ink)] mb-3">
+                        {isEn ? 'Speed & Motorsport' : 'Хурд & Авто Спорт'}
+                      </h5>
+                      <ul className="space-y-3 text-xs text-[#3f382c]">
+                        <li>
+                          <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                            {isEn ? 'Kart Racing' : 'Картингийн уралдаан'}
+                          </div>
+                          <p className="text-[#5a5243] mt-0.5 leading-relaxed">
+                            {isEn
+                              ? 'Races go-karts regularly and is actively training for upcoming competitions.'
+                              : 'Картингаар тогтмол уралддаг бөгөөд удахгүй болох уралдаанд оролцохоор бэлтгэж байгаа.'}
+                          </p>
+                        </li>
+                        <li>
+                          <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                            <Flag className="w-3.5 h-3.5 text-rose-700 shrink-0" />
+                            {isEn ? 'Formula 1 & Motorcycles' : 'Formula 1 & Моторт техник'}
+                          </div>
+                          <p className="text-[#5a5243] mt-0.5 leading-relaxed">
+                            {isEn
+                              ? 'Big fan of Max Verstappen in F1, with a strong passion for cars and motorcycles.'
+                              : 'F1-ийн Max Verstappen-ийг дэмждэг, мөн мотортой машин ба мотоцикл их сонирхдог.'}
+                          </p>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Pillar 03 */}
+                  <div className="p-4 bg-[#ebe5d4] border-2 border-[var(--line)] rounded-2xl flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between border-b border-[var(--line)]/20 pb-2.5 mb-3">
+                        <span className="font-mono text-xs font-bold text-[#6d6657]">03</span>
+                        <Music className="w-4 h-4 text-cyan-900" />
+                      </div>
+                      <h5 className="text-sm font-extrabold uppercase tracking-wide text-[var(--ink)] mb-3">
+                        {isEn ? 'Music, Languages & Code' : 'Урлаг, Хэл & Код'}
+                      </h5>
+                      <ul className="space-y-3 text-xs text-[#3f382c]">
+                        <li>
+                          <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                            <Music className="w-3.5 h-3.5 text-cyan-800 shrink-0" />
+                            {isEn ? 'Morin Khuur & Languages' : 'Морин хуур & Хэл'}
+                          </div>
+                          <p className="text-[#5a5243] mt-0.5 leading-relaxed">
+                            {isEn
+                              ? 'Plays traditional Mongolian Morin Khuur. B1 English, also studying Chinese and Korean.'
+                              : 'Монгол морин хуур тоглож чаддаг. Англи B1 түвшинтэй, мөн Хятад, Солонгос хэл сурдаг.'}
+                          </p>
+                        </li>
+                        <li>
+                          <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                            <Gamepad2 className="w-3.5 h-3.5 text-indigo-800 shrink-0" />
+                            {isEn ? 'Coding & Roblox Rivals' : 'Код & Roblox Rivals'}
+                          </div>
+                          <p className="text-[#5a5243] mt-0.5 leading-relaxed">
+                            {isEn
+                              ? 'Codes websites and mini-games, and enjoys playing Rivals on Roblox in free time.'
+                              : 'Вэб сайт, тоглоом кодчилдог ба чөлөөт цагаараа Roblox дээр Rivals тоглох дуртай.'}
+                          </p>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Navigation Strip */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t-2 border-[var(--line)]/15">
+                  <span className="text-xs font-semibold text-[#5a5243]">
+                    {isEn ? 'Explore more:' : 'Цааш үзэх:'}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('projects')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#e8e2d2] hover:bg-[#ddd5c1] border-2 border-[var(--line)] rounded-xl text-xs font-bold text-[var(--ink)] transition-colors cursor-pointer"
+                    >
+                      <span>{isEn ? 'My Projects' : 'Миний бүтээлүүд'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('games')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[var(--line)] hover:opacity-90 border-2 border-[var(--line)] rounded-xl text-xs font-bold text-[var(--paper)] transition-opacity cursor-pointer"
+                    >
+                      <span>{isEn ? 'My Games' : 'Миний тоглоом'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('interests')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#e8e2d2] hover:bg-[#ddd5c1] border-2 border-[var(--line)] rounded-xl text-xs font-bold text-[var(--ink)] transition-colors cursor-pointer"
+                    >
+                      <span>{isEn ? 'Links' : 'Холбоосууд'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1176,116 +1663,63 @@ export default function App() {
               <div className="space-y-3">
                 <div className="p-3 bg-[#e8e2d0] border-2 border-[var(--line)] rounded-xl">
                   <h4 className="font-bold text-sm text-[var(--ink)] uppercase flex items-center gap-2">
-                    <Compass className="w-4 h-4 text-cyan-800" />
-                    Сонирхол ба хэрэгцээт холбоосууд
+                    <Globe className="w-4 h-4 text-amber-800" />
+                    {isEn ? 'Topics & Web Links I Enjoy' : 'Миний сонирхдог сэдэв ба вэб холбоосууд'}
                   </h4>
                   <p className="text-xs text-[#554d3e] mt-0.5">
-                    Энхлүүний анхны 'minii tuhai' вэб хуудсанд байсан бүх эх холбоосууд
+                    {isEn
+                      ? 'Curated links about engineering, karting, Formula 1, and my favorite driver'
+                      : 'Инженерчлэл, Картинг, Formula 1 болон миний дуртай тамирчны тухай холбоосууд'}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <a
-                    href="https://www.nu.edu/blog/types-of-engineering/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl flex items-center justify-between group hover:bg-[#ede7d8] transition-colors"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[var(--ink)] group-hover:text-amber-900 transition-colors">
-                        What does engineering do?
+                  {[
+                    {
+                      title: 'What does engineering do?',
+                      desc: isEn ? 'Types of engineering and mechanics' : 'Инженерчлэлийн төрлүүд ба механикийн тухай',
+                      url: 'https://www.nu.edu/blog/types-of-engineering/',
+                    },
+                    {
+                      title: 'FIA Karting',
+                      desc: isEn ? 'International kart racing news & events' : 'Олон улсын картинг уралдааны мэдээлэл',
+                      url: 'https://www.fiakarting.com/',
+                    },
+                    {
+                      title: 'Formula 1 Official',
+                      desc: isEn ? 'F1 race calendar, standings & teams' : 'F1 уралдааны хуваарь ба багууд',
+                      url: 'https://www.formula1.com/',
+                    },
+                    {
+                      title: isEn ? 'About Max Verstappen' : 'Max Verstappen тухай',
+                      desc: isEn ? 'My favorite F1 World Champion' : 'Миний дэмждэг F1 дэлхийн аварга',
+                      url: 'https://en.wikipedia.org/wiki/Max_Verstappen',
+                    },
+                    {
+                      title: 'My JS Project',
+                      desc: isEn ? 'My first JavaScript practice site' : 'Миний анхны JavaScript дасгал сайт',
+                      url: 'https://js-practicee.netlify.app',
+                    },
+                    {
+                      title: isEn ? 'My Introduction Site' : 'Миний танилцуулга сайт',
+                      desc: isEn ? 'Personal intro website I coded myself' : 'Өөрөө код бичиж бүтээсэн танилцуулга веб',
+                      url: 'https://eb-7c34ee.netlify.app/',
+                    },
+                  ].map((item) => (
+                    <a
+                      key={item.url}
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-start justify-between gap-2 p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl hover:border-[#000] transition-colors"
+                    >
+                      <div>
+                        <div className="font-bold text-sm text-[var(--ink)]">{item.title}</div>
+                        <div className="text-xs text-[#5a5243] mt-0.5">{item.desc}</div>
                       </div>
-                      <div className="text-[11px] text-[#696150] mt-0.5 font-mono">
-                        Инженерийн төрлүүд ба үүрэг
-                      </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-[#696150] group-hover:text-[var(--ink)]" />
-                  </a>
-
-                  <a
-                    href="https://www.fiakarting.com/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl flex items-center justify-between group hover:bg-[#ede7d8] transition-colors"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[var(--ink)] group-hover:text-amber-900 transition-colors">
-                        FIA Karting Official
-                      </div>
-                      <div className="text-[11px] text-[#696150] mt-0.5 font-mono">
-                        Олон улсын картингийн холбоо
-                      </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-[#696150] group-hover:text-[var(--ink)]" />
-                  </a>
-
-                  <a
-                    href="https://www.formula1.com/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl flex items-center justify-between group hover:bg-[#ede7d8] transition-colors"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[var(--ink)] group-hover:text-amber-900 transition-colors">
-                        Formula 1 Official
-                      </div>
-                      <div className="text-[11px] text-[#696150] mt-0.5 font-mono">
-                        F1 уралдааны мэдээ, оноо
-                      </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-[#696150] group-hover:text-[var(--ink)]" />
-                  </a>
-
-                  <a
-                    href="https://en.wikipedia.org/wiki/Max_Verstappen"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl flex items-center justify-between group hover:bg-[#ede7d8] transition-colors"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[var(--ink)] group-hover:text-amber-900 transition-colors">
-                        Max Verstappen tuhai
-                      </div>
-                      <div className="text-[11px] text-[#696150] mt-0.5 font-mono">
-                        Дэлхийн аваргын намтар, рекорд
-                      </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-[#696150] group-hover:text-[var(--ink)]" />
-                  </a>
-
-                  <a
-                    href="https://eb-7c34ee.netlify.app/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl flex items-center justify-between group hover:bg-[#ede7d8] transition-colors"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[var(--ink)] group-hover:text-amber-900 transition-colors">
-                        Minii taniltsuulga site
-                      </div>
-                      <div className="text-[11px] text-[#696150] mt-0.5 font-mono">
-                        https://eb-7c34ee.netlify.app/
-                      </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-[#696150] group-hover:text-[var(--ink)]" />
-                  </a>
-
-                  <a
-                    href="https://js-practicee.netlify.app"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-3.5 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl flex items-center justify-between group hover:bg-[#ede7d8] transition-colors"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-[var(--ink)] group-hover:text-amber-900 transition-colors">
-                        My JS Project
-                      </div>
-                      <div className="text-[11px] text-[#696150] mt-0.5 font-mono">
-                        https://js-practicee.netlify.app
-                      </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-[#696150] group-hover:text-[var(--ink)]" />
-                  </a>
+                      <ExternalLink className="w-4 h-4 shrink-0 text-[#4a4235] mt-0.5" />
+                    </a>
+                  ))}
                 </div>
               </div>
             )}
@@ -1293,62 +1727,47 @@ export default function App() {
             {/* TAB 4: ХОЛБОО БАРИХ */}
             {activeTab === 'contact' && (
               <div className="space-y-4">
-                <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl text-center">
-                  <div className="w-12 h-12 bg-[#ded7c5] border-2 border-[var(--line)] rounded-full flex items-center justify-center mx-auto mb-3">
-                    <Mail className="w-6 h-6 text-[var(--ink)]" />
-                  </div>
-                  <h4 className="text-lg font-bold text-[var(--ink)] uppercase font-serif">
-                    Холбоо барих
+                <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl">
+                  <h4 className="font-bold text-base text-[var(--ink)] flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    {isEn ? 'Get in Touch' : 'Надтай холбогдох'}
                   </h4>
-                  <p className="text-xs text-[#5e5545] max-w-md mx-auto mt-1 leading-relaxed">
-                    Механик инженерчлэл, LEGO загварууд, Картинг болон Вэб програмчлалын чиглэлээр санал солилцох эсвэл хамтран бүтээхэд үргэлж нээлттэй!
+                  <p className="text-xs text-[#5a5243] mt-1">
+                    {isEn
+                      ? 'Reach out via email to share feedback about my projects, games, or engineering.'
+                      : 'Миний бүтээл, тоглоом эсвэл инженерчлэлийн талаар санал бодлоо хуваалцах бол доорх имэйлээр холбогдоорой.'}
                   </p>
 
-                  <div className="mt-4 p-3 bg-[#e8e1cf] border-2 border-[var(--line)] rounded-xl max-w-sm mx-auto flex items-center justify-between">
-                    <div className="text-xs font-mono font-bold text-[var(--ink)] select-all">
+                  <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    <div className="flex-1 px-3.5 py-2.5 bg-[#e8e2d2] border-2 border-[var(--line)] rounded-lg font-mono text-sm font-bold text-[var(--ink)]">
                       benkhluun69@gmail.com
                     </div>
                     <button
                       type="button"
                       onClick={copyEmail}
-                      className="px-2.5 py-1 bg-[var(--line)] text-stone-100 rounded text-[11px] font-bold flex items-center gap-1 hover:opacity-85 transition-opacity cursor-pointer"
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[var(--line)] text-[var(--paper)] rounded-lg text-xs font-bold uppercase tracking-wide hover:opacity-90 transition-opacity cursor-pointer"
                     >
-                      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copied ? 'Хуулагдлаа!' : 'Хуулах'}</span>
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>
+                        {copied ? (isEn ? 'Copied!' : 'Хуулагдлаа!') : isEn ? 'Copy Email' : 'Имэйл хуулах'}
+                      </span>
                     </button>
-                  </div>
-
-                  <div className="mt-4 flex justify-center gap-3">
-                    <a
-                      href="mailto:benkhluun69@gmail.com"
-                      className="pill px-6 py-2.5 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2"
-                    >
-                      <Mail className="w-4 h-4" />
-                      Имэйл бичих
-                    </a>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Modal Footer */}
-            <div className="mt-5 pt-3 border-t-2 border-[var(--line)] flex justify-between items-center text-xs text-[#706857]">
-              <span className="font-mono text-[11px]">
-                Enkhluun · Mechanical Engineer &amp; Web Developer
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowModal(false);
-                  setPreviewUrl(null);
-                }}
-                className="px-4 py-1.5 border border-[var(--line)] rounded-lg bg-[#ded7c5] hover:bg-[#d0c8b4] font-bold text-xs uppercase cursor-pointer"
-              >
-                Хаах
-              </button>
-            </div>
           </div>
         </div>
+      )}
+
+      {/* Separate Full-Screen Game Window */}
+      {activeGameWindow && (
+        <EmojiQuizWindow
+          mode={activeGameWindow}
+          lang={lang}
+          onLangChange={handleLangChange}
+          onClose={() => setActiveGameWindow(null)}
+        />
       )}
     </>
   );
