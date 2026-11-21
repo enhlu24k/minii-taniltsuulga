@@ -1433,6 +1433,37 @@ export default function App() {
                   </div>
                 </div>
 
+                  {/* Game 3: Street fighter */}
+                <div className="p-4 bg-[#f8f5ec] border-2 border-[var(--line)] rounded-xl shadow-sm transition-all hover:border-[#000]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-800 text-amber-100 rounded">
+                          {isEn ? 'Dedicated Window' : 'Тусдаа цонхоор тоглох'}
+                        </span>
+                        
+                      </div>
+                      <h5 className="text-lg font-bold text-[var(--ink)] mt-1.5 flex items-center gap-2">
+                        <span>🏆 Enkhluun - Street fighter</span>
+                      </h5>
+                      <p className="text-xs text-[#4d4436] mt-1 leading-relaxed">
+                        {isEn
+                          ? 'Judo and takewondo fighters.'
+                          : 'Жудо болон такевондо тулаанчид.'}
+                      </p>
+                    
+                    </div>
+
+                    <a
+                      href="https://vibe-fighter-1.ai.studio/"
+                      target="_blank"
+                      className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--line)] text-stone-100 rounded-xl text-xs font-bold uppercase tracking-wide hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span className="text-white">{isEn ? 'Play in Window' : 'Тусдаа цонхонд тоглох'}</span>
+                    </a>
+                  </div>
+                </div>
                 {/* Live Firestore Leaderboard inside Parchment Scroll */}
                 <div className="pt-3 border-t-2 border-[var(--line)]/15">
                   <Leaderboard
